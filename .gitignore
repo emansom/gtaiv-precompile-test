@@ -1,0 +1,17 @@
+# Per-run captures + generated results (keep the repo clean; results go to the
+# pinned GitHub issue, not into git).
+results/raw/
+results/result.md
+results/result.json
+
+# Tester's local config + the downloaded PresentMon binary.
+config/test.config.psd1
+tools/presentmon/*.exe
+
+# Python byproducts.
+__pycache__/
+*.pyc
+
+# Editor/OS noise.
+.DS_Store
+Thumbs.db
