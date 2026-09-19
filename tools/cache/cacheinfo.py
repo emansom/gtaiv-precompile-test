@@ -19,7 +19,7 @@ import sys
 
 CACHE_MAGIC = 0x43504646     # 'FFPC'
 SEC = {1: "meta", 2: "rsTypes", 3: "decls", 4: "keys", 5: "shaders"}
-META_NAMES = ["shaderDir", "adapter", "driver", "os"]
+META_NAMES = ["shaderDir", "adapter", "driver", "os", "dxvk"]   # dxvk: FusionFix d8bfec0+1 on
 
 
 def read_container(path):
