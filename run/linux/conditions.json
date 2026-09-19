@@ -8,8 +8,9 @@
   "plugins\\pipelinecache\\ as FusionFix.<fnv1a64>.<ext>. 'cold' (default true) empties the Mesa cache first;",
   "--warm / --cold override it. Every measurement condition has capture off (CaptureDrawKeys and",
   "CaptureVulkanPipelines = 0): the snapshot recordings are what gets warmed, and D3D9 capture costs frame",
-  "rate. NB on 141a876 the gameplay compile counter only exists while vkcapture runs (Capture- or",
-  "ReplayVulkanPipelines = 1), and needs a loading-screen pass to end its 'before gameplay' window."
+  "rate. From d3c5dc1 vkcapture hooks vkGetInstanceProcAddr whatever the settings, so the frame times and the",
+  "gameplay compile counter are there in every condition, 'off' included (on 141a876 they needed Capture- or",
+  "ReplayVulkanPipelines = 1). Gameplay still starts only once a loading screen has come and gone."
  ],
  "_defaults": {
   "PrecompileShaders": 1, "PrecompileCoverage": 2, "PrecompileOverlay": 1, "PrecompileCoverSdr": 0,
@@ -29,13 +30,14 @@
  ],
  "_state_files_about": [
   "plugins\\ files the runner removes before and after a run (globs, never a snapshot recording): FusionFix's",
-  "record of the snapshot it last copied into each drop-in folder, and the D3D9 side's temp file, left behind",
-  "only by a crash mid-write. Names from the builds being merged: d3d9cache.h StatePath and WriteFileAtomic",
-  "(/tmp/ff-a 1984938), vkcapture.ixx ShareOwnRecording (/tmp/ff-b ea87665; its temp file is",
-  "pipelinecache\\FusionFix.<h>.foz.tmp, which the drop-in cleanup already takes). The runner lists every",
-  "file it removes in meta.json."
+  "record of the snapshot it last copied into each drop-in folder, and each side's temp file, left behind only",
+  "by a crash mid-write. Names read off the merged build d3c5dc1: d3d9cache.h StatePath and WriteFileAtomic,",
+  "vkcapture.ixx ShareOwnRecording. Both temp files sit beside the ASI -- the Vulkan side stages its copy as",
+  "plugins\\FusionFix.pipelinecache.tmp and renames it in, so no stray .tmp lands in the folder players copy.",
+  "The runner lists every file it removes in meta.json."
  ],
- "_state_files": ["FusionFix.d3d9cache.state", "FusionFix.pipelinecache.state", "FusionFix.d3d9cache.tmp"],
+ "_state_files": ["FusionFix.d3d9cache.state", "FusionFix.pipelinecache.state",
+                  "FusionFix.d3d9cache.tmp", "FusionFix.pipelinecache.tmp"],
  "conditions": {
   "off": {
    "about": "Nothing warmed: no loading-screen pass, no Vulkan replay, no capture.",

@@ -36,6 +36,9 @@ import sys
 #   N pipelines (L libraries, K linked); >=1 ms: a, >=5 ms (compiled): b (c libraries), >=20 ms: d; worst W ms
 GP = r"created by DXVK in gameplay(?: so far)?: "
 BEFORE = r"created by DXVK before gameplay: "
+# d3c5dc1 counts creations on a loading screen that came back after gameplay had started
+# apart from gameplay's own, so a mission load is not read as a stutter.
+LATER_LS = r"created by DXVK on later loading screens(?: so far)?: "
 FRAMES = r"gameplay frames(?: final)? t=[\d.]+ play=[\d.]+s: "
 # A count is only a result where the build writes that kind of line at all: an optional
 # fifth element names a line that shows it does (otherwise the column stays empty).
@@ -66,6 +69,9 @@ METRICS = [
     ("gp_worst_ms",    GP + r".*?worst ([\d.]+) ms", "last", "all"),
     ("route_gp_pipes", GP + r"(\d+) pipelines", "delta", "route"),
     ("route_gp_compiled", GP + r".*?>=5 ms \(compiled\): (\d+)", "delta", "route"),
+    # a loading screen after gameplay started (a mission load): counted, never a stutter
+    ("ls_pipes",       LATER_LS + r"(\d+) pipelines", "last", "all"),
+    ("ls_compiled",    LATER_LS + r".*?>=5 ms \(compiled\): (\d+)", "last", "all"),
     # one line per creation >= 20 ms: "gameplay: DXVK spent" (141a876), "gameplay compile t=" (later)
     ("route_slow_compiles", r"gameplay(?: compile t=[\d.]+)?: DXVK spent", "count", "route", BEFORE),
     # gameplay frame times (vkcapture, from the build with the metrics)
@@ -84,7 +90,7 @@ METRICS = [
 DEFAULT_COLS = ["condition", "run", "cold", "load_s", "load_pass_s", "load_hold_s", "quiet_s", "quiet_gave_up",
                 "vk_replayed",
                 "gp_pipes", "gp_compiled", "gp_over20", "gp_worst_ms", "route_gp_pipes", "route_gp_compiled",
-                "route_slow_compiles",
+                "route_slow_compiles", "ls_compiled",
                 "fps_avg", "p99_ms", "max_ms", "spikes", "over50", "route_long_frames", "route_worst_frame_ms",
                 "route_ok", "route_live_s", "route_hangs", "route_hang_s", "frozen_s", "unfocused_s", "deviations",
                 "faults"]
