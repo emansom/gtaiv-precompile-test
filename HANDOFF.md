@@ -9,12 +9,17 @@ requirement of the design, not a preference of this machine: see the next sectio
 
 ## What this session is for
 
-One decisive question, and it gates the whole "golden cache" plan:
+Two questions, both wanted. The first gates the whole "golden cache" plan:
 
-> **Does GTA IV resolve the same shader directory on Windows + NVIDIA as it does on
-> Linux + AMD, when both run DXVK?**
+> **1. Does GTA IV resolve the same shader directory on Windows + NVIDIA as it does
+> on Linux + AMD, when both run DXVK?**
 
-Everything else here is context for answering it.
+> **2. Does precompiling actually remove in-gameplay stutter on Windows?**
+
+Question 1 comes first because it is quick and its answer changes what the project
+ships. Question 2 is the reason the precompiler exists at all and has **never been
+measured on Windows** — it is the outstanding validation, not a nice-to-have. Most
+of this document is context for question 1; `CLAUDE.md` Run 2 covers question 2.
 
 ## Why that question decides everything
 
@@ -67,7 +72,12 @@ directory matches **0**.
    drive a few minutes, quit **through the pause menu** (never kill the process).
 5. Optionally **run again** with `PrecompileShaders = 0` for a clean coverage
    capture — at `1`, most of what gets recorded is the replay's own draws.
-6. Reboot. **Do not analyse anything here**; the Linux side reads it off the mount.
+6. **Then run the PresentMon stutter A/B** (`CLAUDE.md`, Run 2). It is the
+   measurement the precompiler exists to justify and it has never been run on
+   Windows, so it is the outstanding validation rather than an optional extra. The
+   setup is already done by this point; keep the cache file from step 4/5, because
+   the A/B's ON run warms from exactly that pipeline set.
+7. Reboot. **Do not analyse anything here**; the Linux side reads it off the mount.
 
 ## What step 4 decides
 

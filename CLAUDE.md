@@ -20,11 +20,23 @@ anything else we have and should not be collected.
 
 ---
 
-## The short version: the shader-cache run
+## Run 1 of 2: the shader-cache run
 
-This is the sequence the repo owner runs. It is **not** the PresentMon stutter A/B
-below — that is the crowd-test for third-party testers and takes much longer. Do this
-one unless told otherwise.
+There are **two** runs in this file and both are wanted. This one is short and comes
+first; the PresentMon stutter A/B (Step 0 onwards, below) comes after and reuses the
+same install, saves and DXVK setup, so its marginal cost is small.
+
+They answer different questions:
+
+- **This run** — does this machine resolve the same shader directory, and what
+  pipeline keys does it produce? If it resolves a *different* directory, caches
+  cannot be pooled across machines at all, which changes what the project ships.
+  That is why it goes first.
+- **The A/B** — does precompiling actually remove in-gameplay stutter here? That is
+  the whole reason the precompiler exists, and it is **still unanswered on Windows**.
+
+Do this one, then that one. If only one is possible, do this one and say so — but do
+not treat the A/B as optional busywork; it is the outstanding validation.
 
 1. **Clone both repos.** This one, and `emansom/GTAIV.EFLC.FusionFix` at branch
    **`shader-precompile-cache`** (not `shader-precompile`, an older diverged line).
@@ -66,11 +78,16 @@ one unless told otherwise.
 8. **Optionally run again** with `PrecompileShaders = 0` for a clean coverage
    capture — at `1`, most of what gets recorded is the replay's own draws.
 
-Then stop. **Do not analyse the result here.** The owner mounts this partition from
-Linux and reads `plugins\FusionFix.pipelinecache.f*-ms*.bin`,
-`plugins\FusionFix.shaders.log`, `GTAIV_d3d9.log` and the Claude Code transcript
-directly. The two lines that decide the experiment are in the log:
-`shader directory in use:` and the replay's `no-shader` count (0 of 2001 on Linux).
+**Do not analyse the result here.** The owner mounts this partition from Linux and
+reads `plugins\FusionFix.pipelinecache.f*-ms*.bin`, `plugins\FusionFix.shaders.log`,
+`GTAIV_d3d9.log` and the Claude Code transcript directly. The two lines that decide
+the experiment are in the log: `shader directory in use:` and the replay's
+`no-shader` count (0 of 2001 on Linux).
+
+**Then continue to Run 2**, the PresentMon stutter A/B below, while the game is set
+up and the saves are in place. Keep the cache file produced above — it is what that
+A/B's ON run will be warming from, so the two results describe the same pipeline set
+and can be read together.
 
 ---
 
@@ -107,6 +124,12 @@ This does **not** affect the cache data: the keys are identical either way, so a
 contributor never needs to change their DXVK config to contribute coverage.
 
 ---
+
+# Run 2 of 2: the PresentMon stutter A/B
+
+This is the measurement the precompiler exists to justify, and it has **never been
+run on Windows**. Do it after the cache run above; the install, saves, DXVK and
+`.asi` are already in place by then, so most of the setup below is already done.
 
 ## Step 0 — Preconditions (check, don't assume)
 

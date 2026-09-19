@@ -22,10 +22,10 @@ across many GPUs/drivers/CPUs.
 > on Windows and say "run the precompile test".** It follows [`CLAUDE.md`](CLAUDE.md)
 > and walks you through every step, then formats + posts your result.
 
-## Two things live here
+## Two runs live here — do both
 
-They share an install and a `CLAUDE.md`, but they answer different questions and take
-very different amounts of time. Pick deliberately.
+They share an install, saves and DXVK setup, so the marginal cost of the second is
+small. They answer **different** questions and neither substitutes for the other:
 
 | | **Shader-cache run** | **Stutter A/B** (this README's subject) |
 |---|---|---|
@@ -35,10 +35,17 @@ very different amounts of time. Pick deliberately.
 | output | a `.pipelinecache` file + log | `results\result.md` → the pinned issue |
 | start at | [`HANDOFF.md`](HANDOFF.md) | this file, then `CLAUDE.md` Step 0 |
 
-The shader-cache run is what the repo owner is doing right now, and it is the shorter
-of the two. If you were pointed here to "run the cache capture", read
-[`HANDOFF.md`](HANDOFF.md) and the numbered list at the top of `CLAUDE.md` — not the
-PresentMon phases below.
+**Do the shader-cache run first**, because it is short and it gates a design
+question: if this machine resolves a different shader directory, caches cannot be
+pooled across machines at all, and that changes what the project ships. **Then do the
+A/B**, which is the one that answers whether the precompiler is actually worth
+shipping on your hardware — that is still an open question on Windows, and it is the
+whole point of the precompiler existing.
+
+If you only have time for one, say which you did; a cache capture alone is still
+useful, and an A/B alone is still useful. Both from the same machine is worth more
+than either, because the A/B result can then be read against the exact pipeline set
+that machine warmed.
 
 ## What it proves
 
