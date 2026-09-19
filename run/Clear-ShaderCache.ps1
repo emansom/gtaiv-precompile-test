@@ -58,7 +58,15 @@ $CacheMap = @{
         (Join-Path $LA 'AMD\DxcCache'),
         (Join-Path $LA 'AMD\DXCache'),
         (Join-Path $LA 'AMD\GLCache'),
-        (Join-Path $LA 'AMD\VkCache')
+        (Join-Path $LA 'AMD\VkCache'),
+        # Measured on a Windows 11 / RX 9070 XT box: the driver also keeps
+        # AMD\DX9Cache (9.2 MB seen) and AMD\OglCache, neither of which was in this
+        # list. DX9Cache only matters if a run ever falls back to native D3D9 -- but
+        # leaving a shader cache behind is exactly how a "cold" baseline silently
+        # comes up warm, so clear them too. Note AMD\VkCache was EMPTY on that
+        # machine even mid-Vulkan-session, so it is not where this driver caches.
+        (Join-Path $LA 'AMD\DX9Cache'),
+        (Join-Path $LA 'AMD\OglCache')
     )
     Intel = @(
         (Join-Path $LA 'Intel\ShaderCache'),
@@ -119,10 +127,27 @@ foreach ($p in ($toClear | Select-Object -Unique)) {
     $msg = "{0,-8} {1}  (removed {2}, skipped {3})" -f $r.state, $r.path, $r.removed, $r.skipped
     if ($r.state -eq 'cleared') { Write-Host "  $msg" -ForegroundColor Green } else { Write-Host "  $msg" -ForegroundColor DarkGray }
 }
-# DXVK's own state cache lives beside the executable. DXVK 2.x dropped it in favour
-# of pipeline libraries, so finding nothing here is the expected result on a current
-# build -- not a failure. The vendor VULKAN cache cleared above is the one that
-# matters under DXVK.
+# DXVK 2.x/3.x keeps its OWN Vulkan pipeline cache per-application in
+# %LOCALAPPDATA%\dxvk\<hash>.dxvk.bin (+ .lut). This is NOT the old 1.x state cache
+# and NOT the vendor cache cleared above -- it survives both, and DXVK reports it at
+# startup as "Found cache file: ... / Cache: <N> shaders". Leaving it in place is the
+# single most likely way to get a warm "cold" baseline: the OFF run then shows no
+# spikes and the A/B reads INCONCLUSIVE for a reason that looks exactly like the
+# legitimate GPL-on "nothing to fix here" result. Measured on this machine: 10 MB /
+# 1728 shaders still cached after the vendor caches were cleared.
+$dxvkAppCache = Join-Path $env:LOCALAPPDATA 'dxvk'
+if (Test-Path -LiteralPath $dxvkAppCache) {
+    $r = Clear-Folder -Path $dxvkAppCache
+    $results += $r
+    $msg = "{0,-8} {1}  (removed {2}, skipped {3})" -f $r.state, $r.path, $r.removed, $r.skipped
+    if ($r.state -eq 'cleared') { Write-Host "  $msg" -ForegroundColor Green } else { Write-Host "  $msg" -ForegroundColor DarkGray }
+} else {
+    Write-Host "  absent   $dxvkAppCache" -ForegroundColor DarkGray
+}
+
+# DXVK's old 1.x state cache lived beside the executable. DXVK 2.x dropped it in
+# favour of pipeline libraries, so finding nothing here is the expected result on a
+# current build -- not a failure.
 if ($GamePath -and (Test-Path -LiteralPath $GamePath)) {
     $dxvk = Get-ChildItem -LiteralPath $GamePath -Filter '*.dxvk-cache' -File -ErrorAction SilentlyContinue
     if ($dxvk) {

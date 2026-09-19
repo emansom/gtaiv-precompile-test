@@ -28,12 +28,18 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $SCHEMA = 'gtaiv-precompile-result/v1'
+# This file is pasted into a shared issue: force '.' decimals so a tester on a
+# comma-decimal locale does not publish '94,83' where readers expect '94.83'.
+[System.Threading.Thread]::CurrentThread.CurrentCulture =
+    [System.Globalization.CultureInfo]::InvariantCulture
 
 function Read-Json($p) {
     if ($p -and (Test-Path -LiteralPath $p)) { return (Get-Content -LiteralPath $p -Raw | ConvertFrom-Json) }
     return $null
 }
-function N($v, $fmt='F1') { if ($null -eq $v) { return 'n/a' } return ('{0:' + $fmt + '}' -f [double]$v) }
+# NB: -f binds tighter than +, so the concatenation MUST be parenthesised or this
+# parses as '{0:' + $fmt + ('}' -f $v) and throws "Format item ends prematurely".
+function N($v, $fmt='F1') { if ($null -eq $v) { return 'n/a' } return (('{0:' + $fmt + '}') -f [double]$v) }
 
 $hw = Read-Json $HardwareJson
 $vd = Read-Json $VerdictJson
