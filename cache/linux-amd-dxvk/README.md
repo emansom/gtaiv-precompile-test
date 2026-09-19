@@ -5,10 +5,11 @@ real to compare against instead of starting from nothing.
 
 | file | contents | what it is |
 |---|---|---|
-| `FusionFix.pipelinecache.baseline.bin` | 1954 pipelines, 29 decls, 513 shaders | the **shipped** baseline — what any player gets on first launch |
-| `FusionFix.pipelinecache.f21-ms0.bin` | 14079 keys, 29 decls, 525 shaders | the full accumulated capture the baseline was distilled from |
+| `FusionFix.pipelinecache.baseline.bin` | 2350 pipelines (1 instanced), 29 decls, 531 shaders | the **shipped** baseline — what any player gets on first launch |
+| `FusionFix.pipelinecache.f21-ms0.bin` | 14448 keys (4 instanced), 29 decls, 543 shaders | the full accumulated capture the baseline was distilled from |
 
-Both report identical provenance:
+Both are **cache format v2** (instancing recorded per key), which is the only format
+the current prebuilt ASI reads. Shared provenance:
 
 ```
 shaderDir: win32_30
@@ -18,20 +19,30 @@ config:    fmt=21 (D3DFMT_A8R8G8B8)  msaa=0
 ```
 
 Run `python ..\..\tools\cache\cacheinfo.py <file>` to read that back from any
-container, including one produced on Windows. Both files predate the fix that
-records the real Vulkan driver, so their `driver:` field is `32767.65535.65535.65535`,
-a constant DXVK reports in place of a driver version. A capture from build `d1c6119`
-or newer names the driver instead, e.g. `radv Mesa 26.2.3-arch1.1`.
+container, including one produced on Windows. The capture's `driver:` field is
+`radv Mesa 26.2.3-arch1.1`. The baseline's still reads `32767.65535.65535.65535`,
+the constant DXVK reports in place of a driver version: its metadata is carried over
+from the capture it was first exported from, before build `d1c6119` recorded the
+real driver.
 
-### The baseline is filtered; the full capture is not
+### How the baseline was built (2026-09-19)
 
-The Linux install carries four vehicle effects that FusionFix does not ship
-(`gta_vehicle_licenseplate`, `_licenseplate_ext`, `_track`, `_track2`). The baseline
-used to include 47 keys naming 12 shaders found only in those files, which a stock
-install never loads. They were dead weight: replay still "warmed" them, because the
-container carries their bytecode, but nothing would ever draw them. Those keys are
-gone from the baseline (2001 → 1954, `tools/cache/filter_cache.py`). The full capture
-is kept as recorded, so it still contains them.
+Exported by the ASI itself (`PrecompileExportBaseline = 1`), so the deduplication is
+exactly the replay's own, from two raw captures upgraded to v2
+(`tools/cache/upgrade_cache_v2.py`) and merged (`merge_cache.py`): this machine's
+full capture and the Windows capture in `..\windows-amd-dxvk\`. It is keyed on DXVK's
+base pipeline (shaders, vertex input including instancing, output/blend state) plus
+the spec-constant variants, so it holds blend and write-mask variants the previous
+1954-key baseline had folded away.
+
+Then filtered (`filter_cache.py`) of keys naming shaders a stock install never
+loads:
+- the four vehicle effects this Linux install carries that FusionFix does not ship
+  (`gta_vehicle_licenseplate`, `_licenseplate_ext`, `_track`, `_track2`). The Windows
+  capture had inherited 47 such keys by recording its replay of the old baseline;
+- the one shader in the Windows install's older `gta_radar.fxc`.
+
+The full capture is kept as recorded, so it still contains the vehicle keys.
 
 ## Which one to deploy — deploy the BASELINE only
 

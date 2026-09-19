@@ -13,14 +13,18 @@ the vendored DirectX SDK) just to run one experiment.
 ```
 repo    emansom/GTAIV.EFLC.FusionFix
 branch  shader-precompile-cache
-commit  d1c6119  "shaders: detect DXVK by interface, record the real Vulkan driver"
-        (branch head a7d2ec7 only changes the baseline data file, so this is
-        also the ASI for a7d2ec7)
+commit  0468057  "shaders: key the replay on DXVK's base pipeline, capture instancing"
 built   MSVC 14.51 (x86, /MT) via msvc-wine, the same toolchain and Platform=Win32
         target the project's CI uses
-sha256  de30c610c5b8300ba56181071b1f517423f08406e925ec5e7ad729723c9f5914
-size    5,948,416 bytes
+sha256  b003d209bc3061afc06c311d9bb03315da276b825881c8518fa662341670f9b5
+size    5,952,512 bytes
 ```
+
+**This build reads and writes cache format v2 only.** It refuses a v1 file and
+moves it aside as `<name>.unmerged` instead of overwriting it. The Windows install
+from the 2026-09-19 session still holds a v1 capture in `plugins\`; on first launch
+the log says so and a fresh capture starts. The same capture, upgraded to v2, is in
+`cache\windows-amd-dxvk\` if that session's coverage should carry on.
 
 Verify it is current before trusting it:
 
@@ -29,14 +33,15 @@ Get-FileHash .\prebuilt\GTAIV.EFLC.FusionFix.asi -Algorithm SHA256
 git -C <fusionfix-clone> log --oneline -1 origin/shader-precompile-cache
 ```
 
-If that branch has moved past `a7d2ec7`, this binary is **stale**. Build from source
+If that branch has moved past `0468057`, this binary is **stale**. Build from source
 or ask for a fresh one. A stale ASI is the worst failure mode here because everything
 still appears to work; it would just be measuring the wrong build.
 
-A quick in-game tell that this build (or newer) is the one loaded: the log line
-`[ShaderPrecompile] vulkan driver: ...` names the real Vulkan driver, and
-`backend = DXVK` appears on Windows. The previous build `9eb5766` logged
-`backend = native` on Windows even though it was running on DXVK.
+A quick in-game tell that this build (or newer) is the one loaded: the replay's
+summary line reads `... N base identities first (shaders + vertex input + output
+state), then M spec-constant variants; K instanced`. Older builds print only
+`N unique pipelines to build`. Builds from `d1c6119` on also log
+`[ShaderPrecompile] vulkan driver: ...` and `backend = DXVK` on Windows.
 
 ## Installing
 

@@ -17,6 +17,7 @@ WHAT IT DOES
   - drops shader blobs no surviving key references
   - keeps meta untouched: it is the provenance of the capture the keys came from,
     not a description of this file's contents
+  Reads v1 or v2, writes v2 (see ffpc.py).
 
   A --drop file holds one hex hash per line; only the LAST whitespace-separated token
   is read, so fxc_hashes output (`<stage> <hash> <size>` -> use `cut -d' ' -f2`) or a
@@ -28,29 +29,8 @@ WHAT IT DOES
   not against another machine, so shaders the branch itself ships are kept.
 """
 import argparse
-import struct
-import sys
 
-CACHE_MAGIC = 0x43504646     # 'FFPC'
-SEC_META, SEC_RSTYPES, SEC_DECLS, SEC_KEYS, SEC_SHADERS = 1, 2, 3, 4, 5
-NUM_RS, NUM_SAMPLERS = 58, 20
-REC_FMT = "<QQIIII" + "I" * 4 + "III" + "I" * NUM_RS + "B" * NUM_SAMPLERS + "II"
-REC_SZ = struct.calcsize(REC_FMT)
-DECL_NONE = 0xFFFFFFFF
-I_VS, I_PS, I_DECL = 0, 1, 2
-
-
-def read_sections(path):
-    with open(path, "rb") as f:
-        data = f.read()
-    magic, version, nsec, _ = struct.unpack_from("<IIII", data, 0)
-    if magic != CACHE_MAGIC:
-        sys.exit("%s: not an FFPC container (magic 0x%08x)" % (path, magic))
-    secs = []
-    for i in range(nsec):
-        sid, off, size, count = struct.unpack_from("<IIII", data, 16 + 16 * i)
-        secs.append((sid, data[off:off + size], count))
-    return version, secs
+import ffpc
 
 
 def load_hashes(paths):
@@ -70,59 +50,17 @@ ap.add_argument("--drop", action="append", required=True)
 a = ap.parse_args()
 
 drop = load_hashes(a.drop)
-version, secs = read_sections(a.inp)
-by_id = {sid: (blob, count) for sid, blob, count in secs}
+c = ffpc.read(a.inp)
+n_keys, n_decls, n_shaders = len(c.keys), len(c.decls), len(c.shaders)
 
-# ---- keys --------------------------------------------------------------------
-kblob, kcount = by_id[SEC_KEYS]
-keys = [list(struct.unpack_from(REC_FMT, kblob, i * REC_SZ)) for i in range(kcount)]
-kept = [r for r in keys if r[I_VS] not in drop and r[I_PS] not in drop]
-dropped_named = {h for r in keys if r not in kept for h in (r[I_VS], r[I_PS]) if h in drop}
-
-# ---- declarations: keep the referenced ones, in their original order ----------
-dblob, dcount = by_id[SEC_DECLS]
-decls, pos = [], 0
-for _ in range(dcount):
-    n = struct.unpack_from("<I", dblob, pos)[0]
-    decls.append(dblob[pos:pos + 4 + 8 * n])
-    pos += 4 + 8 * n
-used = sorted({r[I_DECL] for r in kept if r[I_DECL] != DECL_NONE})
-remap = {old: new for new, old in enumerate(used)}
-for r in kept:
-    if r[I_DECL] != DECL_NONE:
-        r[I_DECL] = remap[r[I_DECL]]
-
-# ---- shaders: keep the ones a surviving key names -----------------------------
-sblob, scount = by_id[SEC_SHADERS]
-named = {h for r in kept for h in (r[I_VS], r[I_PS]) if h}
-shaders, pos = [], 0
-for _ in range(scount):
-    h, stage, size = struct.unpack_from("<QII", sblob, pos)
-    end = pos + 16 + size
-    if h in named:
-        shaders.append(sblob[pos:end])
-    pos = end
-
-new = {
-    SEC_DECLS: (b"".join(decls[i] for i in used), len(used)),
-    SEC_KEYS: (b"".join(struct.pack(REC_FMT, *r) for r in kept), len(kept)),
-    SEC_SHADERS: (b"".join(shaders), len(shaders)),
-}
-out_secs = [(sid, *new.get(sid, (blob, count))) for sid, blob, count in secs]
-
-header_sz = 16 + 16 * len(out_secs)
-offset, table = header_sz, b""
-for sid, blob, count in out_secs:
-    table += struct.pack("<IIII", sid, offset, len(blob), count)
-    offset += len(blob)
-with open(a.out, "wb") as f:
-    f.write(struct.pack("<IIII", CACHE_MAGIC, version, len(out_secs), 0))
-    f.write(table)
-    for _, blob, _ in out_secs:
-        f.write(blob)
+gone = [r for r in c.keys if r[ffpc.I_VS] in drop or r[ffpc.I_PS] in drop]
+named = {h for r in gone for h in (r[ffpc.I_VS], r[ffpc.I_PS]) if h in drop}
+c.keys = [r for r in c.keys if not (r[ffpc.I_VS] in drop or r[ffpc.I_PS] in drop)]
+ffpc.prune(c)
+size = ffpc.write(a.out, c)
 
 print("keys      %d -> %d  (dropped %d, naming %d of the %d listed shaders)"
-      % (len(keys), len(kept), len(keys) - len(kept), len(dropped_named), len(drop)))
-print("decls     %d -> %d" % (dcount, len(used)))
-print("shaders   %d -> %d" % (scount, len(shaders)))
-print("wrote %s (%d bytes)" % (a.out, offset))
+      % (n_keys, len(c.keys), len(gone), len(named), len(drop)))
+print("decls     %d -> %d" % (n_decls, len(c.decls)))
+print("shaders   %d -> %d" % (n_shaders, len(c.shaders)))
+print("wrote %s (v%d, %d bytes)" % (a.out, ffpc.CURRENT, size))
