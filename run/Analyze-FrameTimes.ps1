@@ -39,6 +39,10 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $Inv = [System.Globalization.CultureInfo]::InvariantCulture
+# Format with '.' decimals regardless of the tester's locale: this report gets pasted
+# into a shared issue, where '94,83' reads as a different number. Parsing already
+# forces $Inv explicitly, so this only affects output.
+[System.Threading.Thread]::CurrentThread.CurrentCulture = $Inv
 
 # --------------------------------------------------------------------------
 # Numeric helpers (locale-safe: PresentMon writes '.' decimals).
@@ -243,6 +247,7 @@ function Invoke-Analyze($log) {
 
     return [pscustomobject]@{
         path = $log.Path; source = $log.Source; n_frames = $n; duration_s = $durationS
+        notes = $notes
         dropped = $log.Dropped; mean_ms = $meanMs; median_ms = (Get-Median $dt)
         p95_ms = (Get-Percentile $dt 95); p99_ms = (Get-Percentile $dt 99)
         p999_ms = (Get-Percentile $dt 99.9); max_ms = ($dt | Measure-Object -Maximum).Maximum

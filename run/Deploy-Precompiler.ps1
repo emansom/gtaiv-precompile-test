@@ -72,14 +72,23 @@ function Set-IniKey {
     $inSec = $false; $done = $false; $secSeen = $false
     foreach ($ln in $lines) {
         $t = $ln.Trim()
-        if ($t -match '^\[(.+)\]$') {
-            if ($inSec -and -not $done) { $out.Add("$K=$Val"); $done = $true }  # append at end of prev section
-            $inSec = ($Matches[1] -ieq $Sec)
+        # NOT '^\[(.+)\]$': FusionFix's ini documents itself with trailing '//'
+        # comments on the SECTION HEADERS too ("[SHADERS]   // Launch-time ...").
+        # An end-anchored match never fires there, so $inSec stays false, the key
+        # is never found, and the fallback appends a SECOND [SHADERS] section --
+        # leaving the original value untouched and the toggle silently inert.
+        if ($t -match '^\[([^\]]+)\]') {
+            if ($inSec -and -not $done) { $out.Add("$K = $Val"); $done = $true }  # append at end of prev section
+            $inSec = ($Matches[1].Trim() -ieq $Sec)
             if ($inSec) { $secSeen = $true }
             $out.Add($ln); continue
         }
         if ($inSec -and $t -match "^\s*$([regex]::Escape($K))\s*=") {
-            $out.Add("$K=$Val"); $done = $true; continue
+            # Keep the trailing '//' documentation: this file is rewritten on every
+            # phase, and stripping it would erode the ini over a few runs.
+            $ci = $ln.IndexOf('//')
+            $cmt = if ($ci -ge 0) { '   ' + $ln.Substring($ci) } else { '' }
+            $out.Add("$K = $Val$cmt"); $done = $true; continue
         }
         $out.Add($ln)
     }

@@ -95,7 +95,8 @@ function Phase-Analyze {
     $off = Join-Path $RawDir 'off.csv'; $on = Join-Path $RawDir 'on.csv'
     if (-not (Test-Path $off) -or -not (Test-Path $on)) { throw "Need both $off and $on. Run the off + on phases first." }
     Write-Step "Analyzing OFF vs ON"
-    & "$PSScriptRoot\Analyze-FrameTimes.ps1" $off $on -Json (Join-Path $RawDir 'verdict.json')
+    # -Logs is [string[]] at Position 0: pass ONE array, not two positional args.
+    & "$PSScriptRoot\Analyze-FrameTimes.ps1" @($off, $on) -Json (Join-Path $RawDir 'verdict.json')
     Write-Host "(analyzer exit $LASTEXITCODE : 0=PASS, 1=FAIL)"
 }
 
