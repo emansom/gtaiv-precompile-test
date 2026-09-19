@@ -86,9 +86,10 @@ not treat the A/B as optional busywork; it is the outstanding validation.
    The current ASI uses **cache format v2**. On first launch it moves any older
    capture in `plugins\` aside as `FusionFix.pipelinecache.f21-ms0.bin.unmerged` and
    starts a new one; the log says so. That is expected, not an error. To continue
-   the first Windows session's capture instead, copy
-   `cache\windows-amd-dxvk\FusionFix.pipelinecache.f21-ms0.bin` into `plugins\`
-   before launching, and note which you did.
+   the first Windows session's capture instead, create `plugins\pipelinecache\` and
+   copy `cache\windows-amd-dxvk\FusionFix.pipelinecache.f21-ms0.bin` into it before
+   launching. That folder is where caches from a player's other PCs go: the replay
+   warms them and capture merges them in. Note which you did.
 
    If GTA IV does not already have FusionFix installed, deploy the branch's
    `data\plugins\` and `data\update\` first, then overwrite the `.asi`.
@@ -116,12 +117,12 @@ reads `plugins\FusionFix.pipelinecache.f*-ms*.bin`, `plugins\FusionFix.shaders.l
 `GTAIV_d3d9.log` and the Claude Code transcript directly. The line that decides
 the experiment is `shader directory in use:` in the log.
 
-Don't read the replay's `no-shader` count as a portability check. It is 0 on any
-install, because the cache file carries the bytecode of every shader its keys name
-and replay recreates them from the file. Whether a warmed pipeline is ever *used*
-depends on whether this install's `.fxc` files contain the same shaders. The owner
-answers that on Linux by intersecting the keys' shader hashes with this install's
-shader set.
+The replay's `no-shader` count **is** a portability check again, since build `567b3cb`.
+Cache files no longer carry the game's `.fxc` shader bytecode, so a key naming a
+game shader this install does not have is skipped and counted there. With the
+shipped baseline on this FusionFix-release install, **expect exactly 4**: they name
+the branch's newer `gta_radar` shader. Report the number; anything well above 4 is
+worth flagging.
 
 **Then continue to Run 2**, the PresentMon stutter A/B below, while the game is set
 up and the saves are in place. Keep the cache file produced above — it is what that

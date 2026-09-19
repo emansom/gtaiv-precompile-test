@@ -140,7 +140,7 @@ gtaiv-precompile-test/
 │  └─ README.md                  # commit, toolchain, hash, how to verify + install
 ├─ cache/                     # all cache format v2 (instancing recorded per key)
 │  ├─ linux-amd-dxvk/         # reference caches from the development machine (the MORE modded install)
-│  │  ├─ FusionFix.pipelinecache.baseline.bin  # DEPLOY THIS (2350 pipelines, 531 shaders)
+│  │  ├─ FusionFix.pipelinecache.baseline.bin  # DEPLOY THIS (2350 pipelines; game shaders by hash)
 │  │  ├─ FusionFix.pipelinecache.f21-ms0.bin   # the full capture (reference only)
 │  │  └─ README.md                             # how the baseline was built and filtered; how the installs differ
 │  └─ windows-amd-dxvk/       # the first Windows session's capture, upgraded to v2

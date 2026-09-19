@@ -17,7 +17,13 @@ requirement of the design, not a preference of this machine: see the next sectio
 >    driver's own Vulkan cache is warm. That stall is still being investigated.
 >
 > **Since then (same day, Linux side):**
-> - **Prebuilt ASI `0468057`.** The replay is keyed on DXVK's base pipeline:
+> - **Prebuilt ASI `567b3cb`.** Cache files no longer carry the game's `.fxc` shader
+>   bytecode: those shaders are named by hash and resolved from the install, and only
+>   FusionFix's runtime-built shaders travel as bytecode. Warming is unchanged. Caches
+>   from a player's other PCs go in `plugins\pipelinecache\`; they are warmed and
+>   merged into the local capture. Expect **4** `no-shader` on the Windows install
+>   (see below).
+> - **Replay keyed on DXVK's base pipeline** (since `0468057`):
 >   shaders, vertex input *including instancing*, output/blend state. The old key
 >   folded blend state away and never saw instancing, which GTA IV does use: one
 >   instanced key was drawn 5,766 times in a short drive. This build also detects
@@ -127,13 +133,20 @@ provenance: <os> / <adapter> / driver <ver> / backend <DXVK|native D3D9>
   this field. That is not a failure; it is the answer we need, and the cache format
   already records it so nothing silently corrupts.
 
-**The replay's `no-shader` count is NOT a second tell.** An earlier version of this
-file said it was, and that was wrong. The cache file carries the bytecode of every
-shader its keys name, so replay recreates those shaders from the file and reports
-`0 no-shader` on *any* install, whatever directory it resolved. Whether a warmed
-pipeline is ever used depends on whether the install's own `.fxc` files contain the
-same shaders. That is answered offline, by intersecting the keys' shader hashes with
-the install's shader set, and it is how the 47 non-stock baseline keys were found.
+**The replay's `no-shader` count is a second tell again, since `567b3cb`.** For a
+while it was not: cache files carried the bytecode of every shader their keys named,
+so replay recreated them all and reported `0 no-shader` on any install. Now the game's
+`.fxc` shaders travel as hashes only and are resolved from the install, so a key
+naming a game shader the install lacks is skipped and counted. With the shipped
+baseline:
+- a **branch** install should show 0;
+- a FusionFix **release** install should show **4**, because 4 keys name the
+  branch's newer `gta_radar` shader (`f680fa1f75e55654`).
+
+A resolved directory other than `win32_30` would show a large count. The offline
+check (intersecting key hashes with an install's shader set,
+`tools/cache/basecov.py` / `fxcgap.py`) is still how the 47 Liberty City Plates keys
+were found.
 
 ## Where the code is
 
@@ -158,7 +171,7 @@ it stays local until they say otherwise.
 | rsTypes | 2 | which render states the records carry |
 | decls | 3 | vertex declarations |
 | keys | 4 | `KeyRecord` table (v2: 336 bytes each, with per-stream instancing) |
-| shaders | 5 | the bytecode those keys name |
+| shaders | 5 | bytecode of the named shaders no `.fxc` supplies (FusionFix's runtime ones) |
 
 `tools/cache/ffpc.py` is the Python reader/writer for both versions. A file the ASI
 cannot merge (other version, state set or shader directory) is kept as
@@ -168,14 +181,15 @@ Strings, in order: **shaderDir**, adapter, driver, os. `shaderDir` is the bucket
 key. Sectioned so a merge tool can seek to the metadata of a thousand contributions
 without parsing a thousand key tables.
 
-One file is the whole contribution — keys can never arrive without the shaders they
-name. The capture **refuses to merge** a cache whose `shaderDir` differs from the
-local one, and logs why.
+One file is the whole contribution. Keys can never arrive without the shaders they
+name: game shaders by hash (every install of that shader directory has them), and
+FusionFix's runtime shaders as bytecode. The capture **refuses to merge** a cache
+whose `shaderDir` differs from the local one, and logs why.
 
 ## What is already settled (don't re-derive)
 
 - **Replay works.** 2001 of 2001 pipelines warmed on Linux and 2099 of 2099 on
-  Windows, 0 no-shader / 0 no-decl / 0 no-RT. (The baseline is now 1954 keys, see
+  Windows, 0 no-shader / 0 no-decl / 0 no-RT. (The baseline is now 2350 keys, see
   the status note at the top.)
 - **The shipped baseline covers 99.3%** of every pipeline ever observed locally
   (1985 of 1999 at the time of measurement), verified two independent ways: offline

@@ -13,12 +13,24 @@ the vendored DirectX SDK) just to run one experiment.
 ```
 repo    emansom/GTAIV.EFLC.FusionFix
 branch  shader-precompile-cache
-commit  0468057  "shaders: key the replay on DXVK's base pipeline, capture instancing"
+commit  567b3cb  "shaders: carry bytecode only for shaders no .fxc supplies; import caches"
 built   MSVC 14.51 (x86, /MT) via msvc-wine, the same toolchain and Platform=Win32
         target the project's CI uses
-sha256  b003d209bc3061afc06c311d9bb03315da276b825881c8518fa662341670f9b5
-size    5,952,512 bytes
+sha256  1a257e66e2c0798daa36d3cb1151cf7de1613f7e7ab465d17ebfd5deb43772f0
+size    5,957,120 bytes
 ```
+
+**Cache files from this build carry no game shader bytecode.** The game's own `.fxc`
+shaders are resolved by hash from the install; only the shaders FusionFix builds at
+runtime travel as bytecode. Warming is unchanged. A side effect worth knowing: the
+replay's `no-shader` count means something again. It counts keys naming a game
+shader this install does not have. With the shipped baseline on a FusionFix
+**release** install, expect exactly **4**: the branch's newer `gta_radar` shader
+`f680fa1f75e55654`. Expect 0 on a branch install.
+
+**Caches from your other PCs** go in `<game>\plugins\pipelinecache\`, any file name
+ending in `.bin`. The replay warms them, and with `CaptureDrawKeys = 1` they are
+merged into this PC's own capture.
 
 **This build reads and writes cache format v2 only.** It refuses a v1 file and
 moves it aside as `<name>.unmerged` instead of overwriting it. The Windows install
@@ -33,15 +45,17 @@ Get-FileHash .\prebuilt\GTAIV.EFLC.FusionFix.asi -Algorithm SHA256
 git -C <fusionfix-clone> log --oneline -1 origin/shader-precompile-cache
 ```
 
-If that branch has moved past `0468057`, this binary is **stale**. Build from source
+If that branch has moved past `567b3cb`, this binary is **stale**. Build from source
 or ask for a fresh one. A stale ASI is the worst failure mode here because everything
 still appears to work; it would just be measuring the wrong build.
 
 A quick in-game tell that this build (or newer) is the one loaded: the replay's
 summary line reads `... N base identities first (shaders + vertex input + output
 state), then M spec-constant variants; K instanced`. Older builds print only
-`N unique pipelines to build`. Builds from `d1c6119` on also log
-`[ShaderPrecompile] vulkan driver: ...` and `backend = DXVK` on Windows.
+`N unique pipelines to build`. From `567b3cb` on, capture also logs `cache carries
+bytecode for N shaders; M more are resolved from the install's .fxc files`. Builds
+from `d1c6119` on log `[ShaderPrecompile] vulkan driver: ...` and `backend = DXVK`
+on Windows.
 
 ## Installing
 

@@ -5,11 +5,13 @@ real to compare against instead of starting from nothing.
 
 | file | contents | what it is |
 |---|---|---|
-| `FusionFix.pipelinecache.baseline.bin` | 2350 pipelines (1 instanced), 29 decls, 531 shaders | the **shipped** baseline — what any player gets on first launch |
-| `FusionFix.pipelinecache.f21-ms0.bin` | 14448 keys (4 instanced), 29 decls, 543 shaders | the full accumulated capture the baseline was distilled from |
+| `FusionFix.pipelinecache.baseline.bin` | 2350 pipelines (1 instanced), 29 decls; names 531 shaders, carries bytecode for 25 | the **shipped** baseline — what any player gets on first launch |
+| `FusionFix.pipelinecache.f21-ms0.bin` | 14462 keys (4 instanced), 29 decls; names 543 shaders, carries bytecode for 25 | the full accumulated capture the baseline was distilled from |
 
 Both are **cache format v2** (instancing recorded per key), which is the only format
-the current prebuilt ASI reads. Shared provenance:
+the current prebuilt ASI reads. Neither carries bytecode for any game `.fxc`
+shader. Those are resolved by hash from the install they are replayed on. The 25
+that travel are the shaders FusionFix builds at runtime. Shared provenance:
 
 ```
 shaderDir: win32_30

@@ -5,7 +5,7 @@ downtown Algonquin), taken off the NTFS partition afterwards.
 
 | file | contents |
 |---|---|
-| `FusionFix.pipelinecache.f21-ms0.bin` | 3667 keys, 29 decls, 542 shaders, **upgraded to cache format v2** |
+| `FusionFix.pipelinecache.f21-ms0.bin` | 3667 keys, 29 decls; names 542 shaders, carries bytecode for 25; **upgraded to cache format v2** |
 
 ```
 shaderDir: win32_30
@@ -19,7 +19,11 @@ config:    fmt=21 (D3DFMT_A8R8G8B8)  msaa=0
 
 - **Upgraded, not re-captured.** The original is v1, which the current ASI refuses.
   `tools/cache/upgrade_cache_v2.py` widened each key with "no instancing", because a
-  v1 capture never recorded it. Everything else is byte-for-byte what Windows wrote.
+  v1 capture never recorded it. The keys are otherwise exactly what Windows wrote.
+- **Bytecode trimmed** to the policy the ASI now writes (`filter_cache.py
+  --strip-fxc`): the game's `.fxc` shaders are named by hash only and resolved from
+  whatever install replays this; only FusionFix's 25 runtime-built shaders travel as
+  bytecode.
 - **Unfiltered.** It still holds 47 keys naming Liberty City Plates shaders, a mod
   installed only on the Linux machine; this install has just FusionFix and Various
   Fixes. They are not Windows data: all 47 are exact copies of keys in the old
@@ -34,5 +38,6 @@ config:    fmt=21 (D3DFMT_A8R8G8B8)  msaa=0
 
 The new ASI moves the install's v1 file aside as `FusionFix.pipelinecache.f21-ms0.bin.unmerged`
 and starts a fresh capture. To keep accumulating onto what Windows already saw instead,
-copy this file into `<game>\plugins\` before the first launch. Either is fine for the
-experiment; say which was done.
+copy this file into `<game>\plugins\pipelinecache\` (create the folder) before the
+first launch: the replay warms it and capture merges it into the new file. Either is
+fine for the experiment; say which was done.

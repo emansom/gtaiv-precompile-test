@@ -102,12 +102,14 @@ The Steam Subscriber Agreement quotes below were re-checked against the live tex
 a base for a golden database that ships. Shipped golden databases are built only from
 recordings contributors make with the mod itself.
 
-**Recommended follow-up (e), with no functional cost.** Stop storing bytecode for
-shaders that come from the install's `.fxc` files. Where the install has them, the
-replay already resolves them by hash; where it doesn't, the pipeline would never be
-used anyway. Keep bytecode only for FusionFix's runtime-built shaders (the 25). This
-also stops player contributions from carrying other mods' shaders (e.g. Liberty City
-Plates).
+**Follow-up (e): DONE in FusionFix `567b3cb`.** Cache files no longer store bytecode
+for shaders from the install's `.fxc` files. Where the install has them, the replay
+resolves them by hash; where it doesn't, the pipeline would never be used anyway.
+Bytecode is kept only for FusionFix's runtime-built shaders (the 25), so player
+contributions no longer carry other mods' shaders either (e.g. Liberty City Plates).
+The same build adds `plugins\pipelinecache\` for a player's caches from their own
+other PCs: warmed, and merged into the local capture with max counts, so it can go
+back and forth without the counts compounding.
 
 ## Measured vs assumed
 
