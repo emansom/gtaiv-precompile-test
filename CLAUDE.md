@@ -18,6 +18,41 @@ cannot be pooled. Under DXVK the probe is answered by DXVK, which is what makes 
 single shared cache possible at all. A native-D3D9 result is not comparable to
 anything else we have and should not be collected.
 
+---
+
+## The short version: the shader-cache run
+
+This is the sequence the repo owner runs. It is **not** the PresentMon stutter A/B
+below — that is the crowd-test for third-party testers and takes much longer. Do this
+one unless told otherwise.
+
+1. **Clone both repos.** This one, and `emansom/GTAIV.EFLC.FusionFix` at branch
+   **`shader-precompile-cache`** (not `shader-precompile`, an older diverged line).
+   Read [`HANDOFF.md`](HANDOFF.md) for the why.
+2. **Find the game** — confirm the path *before* anything writes to it:
+   ```powershell
+   .\run\Find-GtaivInstall.ps1 -Json .\results\raw\installs.json
+   ```
+   Its Steam VDF parsing is verified against real data; its **registry reads have no
+   test coverage**. If the answer looks wrong, set `GamePath` by hand.
+3. **Install the latest DXVK** — 32-bit `d3d9.dll` beside `GTAIV.exe`. Confirm a
+   `GTAIV_d3d9.log` appears on launch. No log = native D3D9 = do not collect.
+4. **Deploy** into `<game>\plugins\`: the `.asi` built from that branch, and
+   `cache\linux-amd-dxvk\FusionFix.pipelinecache.baseline.bin`. Deploy the baseline
+   **only** — see that folder's README for why not the full capture.
+5. **Run once** with `PrecompileShaders = 1` and `CaptureDrawKeys = 1`. Load a save,
+   drive a few minutes, quit **through the pause menu** (never kill the process).
+6. **Optionally run again** with `PrecompileShaders = 0` for a clean coverage
+   capture — at `1`, most of what gets recorded is the replay's own draws.
+
+Then stop. **Do not analyse the result here.** The owner mounts this partition from
+Linux and reads `plugins\FusionFix.pipelinecache.f*-ms*.bin`,
+`plugins\FusionFix.shaders.log`, `GTAIV_d3d9.log` and the Claude Code transcript
+directly. The two lines that decide the experiment are in the log:
+`shader directory in use:` and the replay's `no-shader` count (0 of 2001 on Linux).
+
+---
+
 **You cannot play the game for the tester.** Parts of this are manual: the tester
 launches GTA IV and drives a short fixed route while PresentMon captures frames.
 Your role is to run the scripts, tell the tester exactly what to do at each gate,
