@@ -1,17 +1,22 @@
 # CLAUDE.md — run the GTA IV shader-precompile test (Windows)
 
-> **If you are the repo owner's own Windows session, read [`HANDOFF.md`](HANDOFF.md)
-> FIRST.** This file describes the *crowd-test* flow for an anonymous third-party
-> tester on **native Direct3D 9**. The owner's current work runs **DXVK on Windows
-> too**, is chasing a different question (does the game resolve the same shader
-> directory across vendors under DXVK?), and uses a newer branch. Following this file
-> instead of HANDOFF.md will measure the wrong thing.
+> **Read [`HANDOFF.md`](HANDOFF.md) first.** It carries the current state of the
+> work, the cache format, what is already settled, and the one question the Windows
+> side exists to answer. This file is the step-by-step stutter A/B on top of that.
 
 You are Claude Code running on the tester's **Windows** machine. Your job: run
 this harness end-to-end to measure whether the FusionFix **shader precompiler**
-eliminates in-gameplay shader-compile **stutter** in **Grand Theft Auto IV**
-(native Direct3D 9), then format the result and help the tester post it to the
-project's pinned results issue.
+eliminates in-gameplay shader-compile **stutter** in **Grand Theft Auto IV**,
+then format the result and help the tester post it to the project's pinned results
+issue.
+
+**Every run uses the latest DXVK**, on Windows exactly as on Linux — this is a
+requirement, not a preference. GTA IV picks between six shader directories by
+probing depth formats, and under native D3D9 that probe is answered by the vendor's
+driver, so different GPUs load **different shader bytecode** and produce caches that
+cannot be pooled. Under DXVK the probe is answered by DXVK, which is what makes a
+single shared cache possible at all. A native-D3D9 result is not comparable to
+anything else we have and should not be collected.
 
 **You cannot play the game for the tester.** Parts of this are manual: the tester
 launches GTA IV and drives a short fixed route while PresentMon captures frames.
@@ -25,13 +30,25 @@ Pinned results issue: **#1** — `https://github.com/emansom/gtaiv-precompile-te
 
 ## What "PASS" means (so you can explain it)
 
-GTA IV/its driver JIT-compiles GPU shader ISA the **first time** it sees each
-shader+render-state during gameplay, and caches it on disk. Cold, that first use
-is a **stutter** — an isolated large frame-time spike. The precompiler does all of
-it **at launch** instead. We prove it by capturing the SAME short drive twice on a
-**freshly cleared driver shader cache**: once with the precompiler **OFF** (cold →
-should stutter) and once **ON** (should not). **PASS** = the isolated compile
-spikes seen OFF drop to ~0 ON, and p99.9/max frame time collapse to the median.
+Under DXVK, a Vulkan **pipeline** is built the first time the game draws with a given
+shader + render-state combination. Cold, that first use is a **stutter** — an isolated
+large frame-time spike. The precompiler builds them all **at launch** instead. We
+prove it by capturing the SAME short drive twice on a **freshly cleared pipeline
+cache**: once with the precompiler **OFF** (cold → should stutter) and once **ON**
+(should not). **PASS** = the isolated compile spikes seen OFF drop to ~0 ON, and
+p99.9/max frame time collapse to the median.
+
+**Record whether `VK_EXT_graphics_pipeline_library` is active** — grep the DXVK log
+for `Graphics pipeline libraries`. It decides how much there is to remove: with GPL
+on, DXVK does the expensive work at shader-create time and the stutter this test
+measures is largely already absent (measured on Linux: +2 isolated spikes cold vs
+warm, i.e. nothing to remove). With GPL off, pipelines compile lazily on first draw
+and the stutter is real. **An OFF run with no spikes and GPL on is not a failure of
+the precompiler — it is a correct "nothing to fix here" for that configuration**, and
+should be reported as such rather than retried until it looks bad.
+
+This does **not** affect the cache data: the keys are identical either way, so a
+contributor never needs to change their DXVK config to contribute coverage.
 
 ---
 
@@ -52,6 +69,12 @@ Get-Command gh -ErrorAction SilentlyContinue   # optional: lets you post automat
 - **GTA IV** must be installed with the **FusionFix build that includes the
   precompiler** (from `emansom/GTAIV.EFLC.FusionFix` branch
   `shader-precompile-cache` — `shader-precompile` is an older diverged line).
+- **DXVK must be installed and actually loading.** Drop the latest release's 32-bit
+  `d3d9.dll` beside `GTAIV.exe`, then confirm a `GTAIV_d3d9.log` (or
+  `DXVK_LOG_PATH`) appears on launch. If there is no DXVK log, the run is on native
+  D3D9 and must not be collected — see the note at the top of this file. Record the
+  DXVK version and whether pipeline libraries are supported:
+  `Select-String -Path "<game>\GTAIV_d3d9.log" -Pattern 'DXVK|pipeline librar'`
   If the tester only has the source, they must build the `.asi` first (out of
   scope here) or supply a prebuilt one; note its path.
 - All harness paths below are relative to the repo root (this folder).

@@ -1,9 +1,11 @@
 # Handoff: Linux → Windows (shader warming / pipeline cache)
 
 State as of **2026-09-19**, written by the Claude Code instance on the Linux side
-(Arch, Proton, RX 9070 XT, DXVK). Read this before `CLAUDE.md` — that file describes
-the *crowd-test* flow for an anonymous tester on native D3D9, which is **not** what
-this session is for.
+(Arch, Proton, RX 9070 XT, DXVK). Read this before `CLAUDE.md`, which is the
+step-by-step stutter A/B built on top of it.
+
+**Every run — yours and any third-party tester's — uses the latest DXVK.** That is a
+requirement of the design, not a preference of this machine: see the next section.
 
 ## What this session is for
 
@@ -33,11 +35,17 @@ none of the above            -> [0] win32_30
 
 Result is stored as a `char*` in `DAT_01633800`; the table of six is at `0x01045520`.
 
-**This is why "assume latest DXVK everywhere" is load-bearing, not a convenience.**
-Under DXVK that probe is answered by *DXVK*, not the vendor driver, which is what
-could collapse six vendor-specific shader sets into one shared cache. But DXVK's own
-format support can still depend on the Vulkan implementation, so convergence is
-**plausible, not proven**. We cannot test it from Linux — hence this handoff.
+**This is why DXVK everywhere is load-bearing, not a convenience.** Under DXVK that
+probe is answered by *DXVK*, not the vendor driver, which is what could collapse six
+vendor-specific shader sets into one shared cache. On native D3D9 the vendor driver
+answers it, so an NVIDIA and an AMD player would load different bytecode and their
+caches could never be pooled — which is why a native-D3D9 run is not a fallback or a
+second data point, it is a different experiment whose results do not combine with
+anything else here.
+
+DXVK's own format support can still depend on the Vulkan implementation, so
+convergence under DXVK is **plausible, not proven**. We cannot test it from Linux —
+hence this handoff.
 
 Linux measured (not assumed): resolves to **`win32_30`**. Proof: of the 1734 shaders
 in `update/common/shaders/win32_30`, 498 hashes match captured keys; every other

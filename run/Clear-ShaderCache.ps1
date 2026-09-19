@@ -6,12 +6,17 @@
   Handles NVIDIA, AMD and Intel, plus the DirectX D3DSCache. Supports -WhatIf.
 
 .DESCRIPTION
-  On native D3D9, "shader stutter" is the driver JIT-compiling GPU ISA the first
-  time it sees a shader+state, and drivers CACHE that ISA on disk keyed to the
-  driver version. If the cache is warm, the OFF run won't stutter and the A/B is
-  meaningless. So we clear the vendor cache before EACH run (OFF and ON). The
-  precompiler's whole job is to make the ON run's cache warm at LAUNCH instead of
-  during gameplay.
+  "Shader stutter" is the first-use compile cost: under DXVK a Vulkan PIPELINE is
+  built the first time the game draws with a given shader+state, and both the Vulkan
+  driver and (on older DXVK) DXVK itself CACHE the result on disk. If those caches
+  are warm, the OFF run won't stutter and the A/B is meaningless. So we clear them
+  before EACH run (OFF and ON). The precompiler's whole job is to make the ON run's
+  cache warm at LAUNCH instead of during gameplay.
+
+  Every run uses DXVK (see CLAUDE.md -- a native-D3D9 run makes the game load
+  different shader bytecode entirely and is not comparable), so the cache that
+  matters is the vendor's VULKAN pipeline cache, plus any *.dxvk-cache beside the
+  executable. The D3D9-era entries are still cleared: harmless, and cheap.
 
   Close the game (and ideally the launcher) before clearing -- open handles are
   skipped. Some entries may be locked by the running driver; those are reported
@@ -19,14 +24,20 @@
 
 .PARAMETER Vendor
   Auto (default, detect from the active GPU), NVIDIA, AMD, Intel, or All.
+.PARAMETER GamePath
+  Folder containing GTAIV.exe. When given, DXVK's own state-cache files
+  (*.dxvk-cache) are removed from it too. DXVK 2.x dropped the state cache in favour
+  of pipeline libraries, so on a current build there is usually nothing to remove --
+  absence is the expected result, not a failure.
 .EXAMPLE
-  .\Clear-ShaderCache.ps1 -Vendor Auto
+  .\Clear-ShaderCache.ps1 -Vendor Auto -GamePath "D:\Games\GTAIV"
   .\Clear-ShaderCache.ps1 -Vendor All -WhatIf
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [ValidateSet('Auto','NVIDIA','AMD','Intel','All')]
-    [string]$Vendor = 'Auto'
+    [string]$Vendor = 'Auto',
+    [string]$GamePath
 )
 
 Set-StrictMode -Version Latest
@@ -108,6 +119,30 @@ foreach ($p in ($toClear | Select-Object -Unique)) {
     $msg = "{0,-8} {1}  (removed {2}, skipped {3})" -f $r.state, $r.path, $r.removed, $r.skipped
     if ($r.state -eq 'cleared') { Write-Host "  $msg" -ForegroundColor Green } else { Write-Host "  $msg" -ForegroundColor DarkGray }
 }
+# DXVK's own state cache lives beside the executable. DXVK 2.x dropped it in favour
+# of pipeline libraries, so finding nothing here is the expected result on a current
+# build -- not a failure. The vendor VULKAN cache cleared above is the one that
+# matters under DXVK.
+if ($GamePath -and (Test-Path -LiteralPath $GamePath)) {
+    $dxvk = Get-ChildItem -LiteralPath $GamePath -Filter '*.dxvk-cache' -File -ErrorAction SilentlyContinue
+    if ($dxvk) {
+        foreach ($f in $dxvk) {
+            if ($PSCmdlet.ShouldProcess($f.FullName, 'Remove DXVK state cache')) {
+                try {
+                    Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop
+                    Write-Host "  cleared  $($f.FullName)" -ForegroundColor Green
+                    $results += [pscustomobject]@{ path=$f.FullName; state='cleared'; removed=1; skipped=0 }
+                } catch {
+                    Write-Host "  locked   $($f.FullName)" -ForegroundColor DarkGray
+                    $results += [pscustomobject]@{ path=$f.FullName; state='locked'; removed=0; skipped=1 }
+                }
+            }
+        }
+    } else {
+        Write-Host "  absent   no *.dxvk-cache in $GamePath (expected on DXVK 2.x)" -ForegroundColor DarkGray
+    }
+}
+
 $totalRemoved = ($results | Measure-Object -Property removed -Sum).Sum
 $totalSkipped = ($results | Measure-Object -Property skipped -Sum).Sum
 Write-Host "Done. Files removed: $totalRemoved  skipped(locked): $totalSkipped"

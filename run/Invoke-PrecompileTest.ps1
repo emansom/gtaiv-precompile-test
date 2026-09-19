@@ -79,8 +79,8 @@ function Phase-Capture([string]$state, [string]$outCsv) {
     & "$PSScriptRoot\Deploy-Precompiler.ps1" @dp
 
     Confirm-Continue "Fully CLOSE GTA IV if open. Then I'll clear the shader cache."
-    Write-Step "Clearing GPU driver shader cache (cold baseline)"
-    & "$PSScriptRoot\Clear-ShaderCache.ps1" -Vendor Auto | Out-Null
+    Write-Step "Clearing GPU driver pipeline cache + any DXVK state cache (cold baseline)"
+    & "$PSScriptRoot\Clear-ShaderCache.ps1" -Vendor Auto -GamePath $cfg.GamePath | Out-Null
 
     Confirm-Continue "Now LAUNCH GTA IV, load your save, and drive to the FIXED route START. Keep the same start + path for OFF and ON."
     if ($state -eq 'On') {
