@@ -198,6 +198,27 @@ can crash the game. It warms a cache only where DXVK would create byte-identical
 pipelines, which means the same DXVK generation and feature set, in practice per
 driver family. Recording on each machine and replaying there always works.
 
+**On by default from FusionFix `141a876`.** The goal is stutter-free gameplay, not a
+short first load:
+- Recording, own replay and foreign replay all default to on.
+- Foreign databases now wait for the loading-screen pass, so they are judged against
+  everything DXVK has shown by then (1500 pipelines here).
+- The loading screen is held until they are done, on min(6, cores/2) threads.
+- Measured on Linux/RADV, Steam Shader Pre-Caching off: the foreign pass took 9.8 s
+  cold (2586 pipelines) and 1.1 s warm.
+
+A new counter times DXVK's own pipeline creations in gameplay: `>=5 ms` means
+compiled, i.e. missed by the warming. 90 s of standing still created 3 pipelines,
+all cache hits. Showing a difference needs a driven route, not idling.
+
+**Where the 32-bit Mesa cache lives.** With Steam Shader Pre-Caching on, Mesa writes
+to `steamapps/shadercache/12210/mesa_shader_cache_sf/<uuid>`. With it off, only
+`STEAM_COMPAT_SHADER_PATH` reaches the game, and Mesa uses its per-user default
+`~/.cache/mesa_shader_cache`. That cache is shared with every Mesa application and
+capped at 1 GB by default, with eviction. That is one more reason the relevance
+check stays: a pipeline no DXVK on this machine will ever request only takes space
+another could need.
+
 ## Legal status (researched 2026-09-19; research, not legal advice)
 
 Full report on the Linux machine: `re/shader-precompile/legal-steam-shader-cache.md`.

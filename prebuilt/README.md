@@ -13,35 +13,44 @@ the vendored DirectX SDK) just to run one experiment.
 ```
 repo    emansom/GTAIV.EFLC.FusionFix
 branch  shader-precompile-cache
-commit  73156da  "shaders: make foreign Vulkan replay safe in-process"
+commit  141a876  "shaders: Vulkan replay on by default, loading screen waits for it"
 built   MSVC 14.51 (x86, /MT) via msvc-wine, the same toolchain and Platform=Win32
         target the project's CI uses
-sha256  596d847e6086b9151539f40485b259ca7b29878a0db44ec56a87d1e41a267816
-size    6,409,728 bytes
+sha256  55d85398ee0f1629dba27a3d11f7853ed6ba275e2ba754fd4a5974d0c25e132b
+size    6,413,312 bytes
 ```
 
-**Vulkan-level record and replay (new, off by default).**
-- `CaptureVulkanPipelines = 1` under `[SHADERS]`: the ASI records the Vulkan pipelines
-  DXVK creates to `plugins\FusionFix.vkpipelines.foz`, a Fossilize database. It needs
-  no Vulkan layer. The log shows `[VkCapture] hooked vkGetInstanceProcAddr in
-  vulkan-1.dll` on Windows.
-- `ReplayVulkanPipelines = 1`: replays that recording on DXVK's own device in the
+**Vulkan-level record and replay, ON by default from `141a876`.** Missing keys count
+as 1. All three work on DXVK only.
+- `CaptureVulkanPipelines`: the ASI records the Vulkan pipelines DXVK creates to
+  `plugins\FusionFix.vkpipelines.foz`, a Fossilize database. It needs no Vulkan layer.
+  The log shows `[VkCapture] hooked vkGetInstanceProcAddr in vulkan-1.dll` on Windows.
+- `ReplayVulkanPipelines`: replays that recording on DXVK's own device, in the
   background from startup, to warm the driver cache. On Linux, with a cold cache, it
   cut the loading-screen warm-up from 18.0 s to 4.6 s.
+- `ReplayVulkanPipelinesForeign`: once the loading-screen pass is done, it also
+  replays every `.foz` dropped into `plugins\pipelinecache\` (another PC's
+  `FusionFix.vkpipelines.foz`) and the player's own Steam Fossilize downloads. Every
+  object passes a relevance check, Fossilize's feature filter and a null-handle
+  check first. The loading screen is held until this finishes, with a progress bar
+  labelled `Vulkan pipelines, N of M`. `ReplayVulkanPipelinesTrace = 1` logs a skip
+  reason for each entry.
 
-A Windows test is wanted:
-1. Record one session with both keys on.
-2. Clear the driver cache (`Clear-ShaderCache.ps1`).
-3. Launch twice more, `ReplayVulkanPipelines` off then on, clearing in between.
-4. Report the `precompile complete in` time of each.
+**The number that matters** is logged every 15 s of gameplay:
+`[VkCapture] created by DXVK in gameplay so far: N pipelines ...; >=5 ms (compiled): M`.
+`M` counts pipelines the warming missed, which the driver had to compile during play.
+Each gameplay creation over 20 ms also gets its own line.
+
+A Windows test is wanted: this is the first build where these are on by default, and
+the Vulkan hook has never run on Windows.
+1. Play one session to record: check the log for the `hooked vkGetInstanceProcAddr`
+   and `device ... recording to` lines.
+2. Clear the driver cache (`Clear-ShaderCache.ps1`), launch, drive the usual route.
+3. Report `held the loading screen`, `precompile complete in` and the last
+   `created by DXVK in gameplay` line.
+4. Repeat step 2 with `ReplayVulkanPipelines = 0`, to compare.
 
 Read a recording with `python tools\cache\fozinfo.py <file>`.
-
-`ReplayVulkanPipelinesForeign = 1` also replays other machines' recordings dropped in
-`plugins\pipelinecache\`, and the player's own Steam Fossilize downloads. From
-`73156da` on this is safe: every object passes Fossilize's feature filter and a
-null-handle check first. It stays off by default. With `ReplayVulkanPipelinesTrace = 1`
-the log gives a skip reason for each entry.
 
 **The log opens with the install's shader set** (`[FxcHashes]`): the directory, the
 effect and shader counts, and a digest of the whole set, then one line per effect.
@@ -78,7 +87,7 @@ Get-FileHash .\prebuilt\GTAIV.EFLC.FusionFix.asi -Algorithm SHA256
 git -C <fusionfix-clone> log --oneline -1 origin/shader-precompile-cache
 ```
 
-If that branch has moved past `73156da`, this binary is **stale**. Build from source
+If that branch has moved past `141a876`, this binary is **stale**. Build from source
 or ask for a fresh one. A stale ASI is the worst failure mode here because everything
 still appears to work; it would just be measuring the wrong build.
 
