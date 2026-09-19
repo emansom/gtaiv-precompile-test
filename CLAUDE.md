@@ -40,9 +40,23 @@ one unless told otherwise.
 4. **Deploy** into `<game>\plugins\`: the `.asi` built from that branch, and
    `cache\linux-amd-dxvk\FusionFix.pipelinecache.baseline.bin`. Deploy the baseline
    **only** — see that folder's README for why not the full capture.
-5. **Run once** with `PrecompileShaders = 1` and `CaptureDrawKeys = 1`. Load a save,
+5. **Install the saves.** Launch GTA IV once and quit (that creates the profile
+   folder), then:
+   ```powershell
+   .\run\Install-Saves.ps1
+   ```
+   This matters for the measurement, not just convenience: if Windows starts
+   somewhere else in the world, a difference in the key sets could be a genuine
+   platform difference *or* just different scenery, and the experiment cannot tell
+   those apart. Same save, same starting point, clean comparison.
+6. **Check the frame limit matches.** The Linux rig runs FusionFix's **75 FPS** cap
+   (`FpsLimitPreset = 8` in `plugins\GTAIV.EFLC.FusionFix.cfg`). Set the same on
+   Windows. It does not change which pipeline keys are recorded, but it does change
+   frame pacing, so leaving them different would make any timing comparison
+   meaningless.
+7. **Run once** with `PrecompileShaders = 1` and `CaptureDrawKeys = 1`. Load a save,
    drive a few minutes, quit **through the pause menu** (never kill the process).
-6. **Optionally run again** with `PrecompileShaders = 0` for a clean coverage
+8. **Optionally run again** with `PrecompileShaders = 0` for a clean coverage
    capture — at `1`, most of what gets recorded is the replay's own draws.
 
 Then stop. **Do not analyse the result here.** The owner mounts this partition from
