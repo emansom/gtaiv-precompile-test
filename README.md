@@ -38,8 +38,22 @@ this configuration"*, not a broken measurement to retry until it looks bad.
 
 ## Requirements
 
-- Windows 10/11 with **Windows PowerShell 5.1** (built in) — run **as Administrator**
-  (PresentMon uses ETW).
+- **Windows 11** (build 22000+). Windows 10 is legacy and is not supported — don't
+  collect a result from it.
+- The toolchain, all via winget (none need Administrator to install):
+  ```powershell
+  winget install Microsoft.WindowsTerminal   # terminal
+  winget install Microsoft.PowerShell        # PowerShell 7.x (pwsh)
+  winget install Anthropic.ClaudeCode        # drives the harness
+  winget install Intel.PresentMon            # frame-time capture
+  winget install Python.Python.3.13          # for tools\cache\*.py
+  ```
+  Then reopen Windows Terminal **as Administrator** and run `pwsh` — PresentMon
+  captures via ETW and needs elevation.
+- Note `Intel.PresentMon` installs Intel's PresentMon *application*. The harness
+  drives the pinned command-line `PresentMon.exe` fetched by
+  `.\tools\presentmon\Get-PresentMon.ps1`; run that too. Pinning the CLI version is
+  what keeps results comparable between machines.
 - **GTA IV** installed, with the FusionFix build that includes the precompiler
   (`emansom/GTAIV.EFLC.FusionFix` branch `shader-precompile`).
 - **PresentMon** — auto-downloaded by `tools\presentmon\Get-PresentMon.ps1` (MIT,

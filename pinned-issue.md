@@ -26,9 +26,16 @@ spikes either way" is a valid, useful result rather than a failed run.
 
 ## How to run the test (≈15 minutes)
 
-You need: Windows 10/11, GTA IV with the **latest DXVK** installed, the FusionFix
-build with the precompiler, and either **Claude Code** (easiest — it drives the whole
-thing) or PowerShell.
+You need **Windows 11** (Windows 10 is not supported), GTA IV with the **latest
+DXVK** installed, and the FusionFix build with the precompiler. Install the rest with
+winget:
+
+```powershell
+winget install Microsoft.WindowsTerminal Microsoft.PowerShell Anthropic.ClaudeCode Intel.PresentMon Python.Python.3.13
+```
+
+Then reopen Windows Terminal **as Administrator** and run `pwsh` (PresentMon needs
+elevation for ETW). Claude Code drives the whole thing if you let it.
 
 1. Get the harness: `git clone https://github.com/emansom/gtaiv-precompile-test`
    *(the owner will fill in the real URL)*.

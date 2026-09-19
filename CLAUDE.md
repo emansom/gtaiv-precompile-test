@@ -110,18 +110,43 @@ contributor never needs to change their DXVK config to contribute coverage.
 
 ## Step 0 — Preconditions (check, don't assume)
 
-Run these and report what you find; stop and ask the tester if something's wrong.
+**Windows 11 only.** Windows 10 is legacy and is not a supported platform here; do
+not collect a result from it.
+
+Install the toolchain with winget (all four are needed; none require Administrator
+to install):
 
 ```powershell
-$PSVersionTable.PSVersion                      # need >= 5.1 (built into Win10/11)
+winget install Microsoft.WindowsTerminal     # the terminal to run everything in
+winget install Microsoft.PowerShell          # PowerShell 7.x (pwsh), not Windows PowerShell 5.1
+winget install Anthropic.ClaudeCode          # the CLI that drives this harness
+winget install Intel.PresentMon              # frame-time capture
+winget install Python.Python.3.13            # for tools\cache\*.py (cacheinfo etc.)
+```
+
+Then **reopen Windows Terminal as Administrator** and run `pwsh` there — PresentMon
+captures via ETW and needs elevation, and the harness is run from PowerShell 7.
+
+> **PresentMon: app vs CLI.** `Intel.PresentMon` installs Intel's PresentMon
+> application. The harness drives the *command-line* `PresentMon.exe` at
+> `tools\presentmon\PresentMon.exe`, which `.\tools\presentmon\Get-PresentMon.ps1`
+> downloads at a pinned version. Run that too — the winget app is useful for a live
+> overlay, but the pinned CLI is what produces the CSV the analyzer parses, and
+> pinning is what keeps results comparable between machines.
+
+Verify, and report what you find; stop and ask the tester if something's wrong:
+
+```powershell
+$PSVersionTable.PSVersion                      # expect 7.x
+[System.Environment]::OSVersion.Version        # expect build >= 22000 (Windows 11)
 # Elevated? PresentMon needs Administrator:
 ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 Get-Command gh -ErrorAction SilentlyContinue   # optional: lets you post automatically
 ```
 
-- **Not elevated?** Tell the tester to reopen Claude Code / the terminal **as
-  Administrator** (right-click → Run as administrator). PresentMon captures via
-  ETW and needs it.
+- **Not elevated?** Tell the tester to reopen Windows Terminal **as Administrator**
+  (right-click → Run as administrator). PresentMon captures via ETW and needs it.
+- **Build < 22000?** That is Windows 10. Stop — it is not supported.
 - **GTA IV** must be installed with the **FusionFix build that includes the
   precompiler** (from `emansom/GTAIV.EFLC.FusionFix` branch
   `shader-precompile-cache` — `shader-precompile` is an older diverged line).

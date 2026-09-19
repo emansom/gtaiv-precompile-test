@@ -2,8 +2,8 @@
 <#
 .SYNOPSIS
   Detect shader-compile-stutter spikes in a frame-time capture, and A/B compare
-  precompile OFF vs ON with a PASS/FAIL verdict. Zero-install: Windows PowerShell
-  5.1 (built into Windows 10/11). No Python, no modules.
+  precompile OFF vs ON with a PASS/FAIL verdict. No Python, no modules -- it runs on
+  PowerShell 7 (the supported setup) and still works on the 5.1 that ships in the box.
 
 .DESCRIPTION
   Ingests a PresentMon CSV (classic 1.x 'msBetweenPresents' or 2.x 'FrameTime'),
