@@ -37,12 +37,27 @@ the spec-constant variants, so it holds blend and write-mask variants the previo
 
 Then filtered (`filter_cache.py`) of keys naming shaders a stock install never
 loads:
-- the four vehicle effects this Linux install carries that FusionFix does not ship
-  (`gta_vehicle_licenseplate`, `_licenseplate_ext`, `_track`, `_track2`). The Windows
-  capture had inherited 47 such keys by recording its replay of the old baseline;
+- the four vehicle effects that come from **Liberty City Plates**, installed only on
+  this Linux machine (`gta_vehicle_licenseplate`, `_licenseplate_ext`, `_track`,
+  `_track2`). This is where the bad keys originate. The Windows capture holds 47
+  of them only because Windows replayed the old baseline built here: all 47 are exact
+  copies of old-baseline keys, each drawn exactly once, i.e. by the replay itself;
 - the one shader in the Windows install's older `gta_radar.fxc`.
 
 The full capture is kept as recorded, so it still contains the vehicle keys.
+
+### The two installs are not modded alike
+
+| install | mods |
+|---|---|
+| Linux (this machine) | FusionFix, Various Fixes, **Liberty City Plates** (+ its texture pack), several texture replacement packs, map fixes |
+| Windows (2026-09-19 run) | FusionFix, Various Fixes |
+
+Only `.fxc` files change which shaders exist, and of these mods only Liberty City
+Plates ships any. Texture packs and map fixes can still change *which* stock-shader
+combinations get drawn. Those keys are harmless on a stock install (at worst a
+pipeline that is never used), but they mean this capture is not a picture of a stock
+game.
 
 ## Which one to deploy — deploy the BASELINE only
 

@@ -20,10 +20,13 @@ config:    fmt=21 (D3DFMT_A8R8G8B8)  msaa=0
 - **Upgraded, not re-captured.** The original is v1, which the current ASI refuses.
   `tools/cache/upgrade_cache_v2.py` widened each key with "no instancing", because a
   v1 capture never recorded it. Everything else is byte-for-byte what Windows wrote.
-- **Unfiltered.** It still holds 47 keys naming non-stock vehicle shaders (inherited
-  by recording its replay of the old Linux baseline) and 1 key naming the Windows
-  install's older `gta_radar.fxc` shader. The shipped baseline was built from a
-  filtered copy; see `..\linux-amd-dxvk\README.md`.
+- **Unfiltered.** It still holds 47 keys naming Liberty City Plates shaders, a mod
+  installed only on the Linux machine; this install has just FusionFix and Various
+  Fixes. They are not Windows data: all 47 are exact copies of keys in the old
+  Linux-built baseline, each drawn exactly once, which is the replay drawing them and
+  capture recording it. It also holds 1 key naming this install's older
+  `gta_radar.fxc` shader. The shipped baseline was built from a filtered copy; see
+  `..\linux-amd-dxvk\README.md`.
 - **Not a baseline.** It is this machine's own record, kept so that "what did Windows
   see" stays answerable.
 
