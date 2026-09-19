@@ -22,6 +22,24 @@ across many GPUs/drivers/CPUs.
 > on Windows and say "run the precompile test".** It follows [`CLAUDE.md`](CLAUDE.md)
 > and walks you through every step, then formats + posts your result.
 
+## Two things live here
+
+They share an install and a `CLAUDE.md`, but they answer different questions and take
+very different amounts of time. Pick deliberately.
+
+| | **Shader-cache run** | **Stutter A/B** (this README's subject) |
+|---|---|---|
+| question | does this machine resolve the same shader directory, and what pipeline keys does it produce? | does precompiling remove in-gameplay stutter here? |
+| time | ~10 minutes, one launch | ~15–30 minutes, two captured drives |
+| needs | nothing but the game | PresentMon, elevation, a repeatable route |
+| output | a `.pipelinecache` file + log | `results\result.md` → the pinned issue |
+| start at | [`HANDOFF.md`](HANDOFF.md) | this file, then `CLAUDE.md` Step 0 |
+
+The shader-cache run is what the repo owner is doing right now, and it is the shorter
+of the two. If you were pointed here to "run the cache capture", read
+[`HANDOFF.md`](HANDOFF.md) and the numbered list at the top of `CLAUDE.md` — not the
+PresentMon phases below.
+
 ## What it proves
 
 Under DXVK a Vulkan **pipeline** is built the first time the game draws with a given
@@ -54,17 +72,22 @@ this configuration"*, not a broken measurement to retry until it looks bad.
   drives the pinned command-line `PresentMon.exe` fetched by
   `.\tools\presentmon\Get-PresentMon.ps1`; run that too. Pinning the CLI version is
   what keeps results comparable between machines.
-- **GTA IV** installed, with the FusionFix build that includes the precompiler
-  (`emansom/GTAIV.EFLC.FusionFix` branch `shader-precompile`).
-- **PresentMon** — auto-downloaded by `tools\presentmon\Get-PresentMon.ps1` (MIT,
-  from Intel/MS). Not bundled; verify the printed hash.
-- **No Python required.** Analysis is pure PowerShell. (An optional richer Python
-  analyzer is in `python\`.)
+- **GTA IV** with the **latest DXVK** and the FusionFix build that includes the
+  precompiler — branch `shader-precompile-cache` of
+  `emansom/GTAIV.EFLC.FusionFix`. A build of it is in [`prebuilt/`](prebuilt/) so no
+  toolchain is needed; check `prebuilt/README.md` that it is not stale first.
+- **PresentMon CLI** — fetched at a pinned version by
+  `tools\presentmon\Get-PresentMon.ps1` (MIT, Intel/MS). Not bundled; verify the
+  printed hash.
+- **Python** is needed only for `tools\cache\*.py` (reading a `.pipelinecache`
+  container). The frame-time analysis is pure PowerShell and needs nothing extra;
+  `python\analyze_frametimes.py` is an optional richer version of it.
 - Optional: **GitHub CLI (`gh`)** to auto-post your result.
 
-## Quick start (manual PowerShell)
+## Quick start — the stutter A/B (manual PowerShell)
 
-In an **Administrator** PowerShell, from the repo root:
+For the shader-cache run instead, see [`HANDOFF.md`](HANDOFF.md); it needs none of
+this. In an **Administrator** `pwsh`, from the repo root:
 
 ```powershell
 Copy-Item config\test.config.example.psd1 config\test.config.psd1
@@ -96,30 +119,57 @@ so results compare cleanly; see [`results/examples/result.example.md`](results/e
 
 ```
 gtaiv-precompile-test/
-├─ CLAUDE.md                  # step-by-step guide for Claude Code on Windows (start here)
+├─ CLAUDE.md                  # guide for Claude Code on Windows; cache run first, then the A/B
+├─ HANDOFF.md                 # state of the shader-cache work + the question Windows answers
 ├─ README.md                  # this file
 ├─ LICENSE                    # MIT (the harness)
 ├─ pinned-issue.md            # body for the stickied "Hardware Test Results" issue
+├─ prebuilt/                  # so no build toolchain is needed
+│  ├─ GTAIV.EFLC.FusionFix.asi   # built from shader-precompile-cache; check it isn't stale
+│  ├─ GTAIV.EFLC.FusionFix.ini   # settings TEMPLATE, don't blindly overwrite an existing one
+│  └─ README.md                  # commit, toolchain, hash, how to verify + install
+├─ cache/linux-amd-dxvk/      # reference caches from the development machine
+│  ├─ FusionFix.pipelinecache.baseline.bin  # DEPLOY THIS (2001 pipelines, 525 shaders)
+│  ├─ FusionFix.pipelinecache.f21-ms0.bin   # the full capture it came from (reference only)
+│  └─ README.md                             # why the baseline and not the full capture
+├─ saves/                     # same starting point => key sets are comparable
+│  ├─ profile/SGTA400..414       # save games from the Linux prefix
+│  └─ README.md                  # the profile folder is per-user; cloud saves can clobber
+├─ state/                     # notes shared between the Linux and Windows sessions
+│  └─ README.md
 ├─ config/
-│  └─ test.config.example.psd1  # copy to test.config.psd1 and edit
-├─ run/                       # PowerShell (zero-install happy path)
+│  └─ test.config.example.psd1   # copy to test.config.psd1 and edit
+├─ run/                       # PowerShell; the A/B happy path needs nothing installed
 │  ├─ Invoke-PrecompileTest.ps1  # orchestrator (phases: hardware/off/on/analyze/report/all)
+│  ├─ Find-GtaivInstall.ps1      # locate the game via Steam libraries / Rockstar / uninstall keys
+│  ├─ Install-Saves.ps1          # copy saves/profile into the per-user GTA IV profile
 │  ├─ Analyze-FrameTimes.ps1     # spike detection + A/B PASS/FAIL verdict
 │  ├─ Capture-Frames.ps1         # PresentMon wrapper -> CSV
-│  ├─ Clear-ShaderCache.ps1      # clear NVIDIA/AMD/Intel + D3DSCache shader caches
+│  ├─ Clear-ShaderCache.ps1      # clear the vendor VULKAN cache + any *.dxvk-cache
 │  ├─ Deploy-Precompiler.ps1     # deploy the ASI + toggle precompile ON/OFF
-│  ├─ Verify-Precompiler.ps1     # confirm the precompiler actually ran (~1734 shaders)
+│  ├─ Verify-Precompiler.ps1     # confirm the precompiler ran (reads FusionFix.shaders.log)
 │  ├─ Get-HardwareInfo.ps1       # GPU+driver / CPU / OS -> JSON
 │  ├─ New-ResultReport.ps1       # build results\result.md (+ result.json)
 │  └─ Common.ps1                 # shared helpers
-├─ tools/presentmon/
-│  └─ Get-PresentMon.ps1      # download the pinned PresentMon CLI
-├─ python/                    # OPTIONAL richer analysis (only if you have Python)
-│  └─ analyze_frametimes.py   # same algorithm; PresentMon/MangoHud/generic CSV; JSON
+├─ tools/
+│  ├─ cache/                  # read and compare .pipelinecache containers (needs Python)
+│  │  ├─ cacheinfo.py            # index one by seeking to its metadata section
+│  │  ├─ basecov.py              # how much of a capture a baseline covers
+│  │  ├─ convert_cache.py        # one-off shim from the old 3-file format
+│  │  ├─ fxcgap.py               # which of RAGE's 1734 shaders a capture reached
+│  │  ├─ fxc_hashes.c            # dump shader hashes from the game's .fxc database
+│  │  ├─ fxc_passes.c            # dump technique/pass + render state from .fxc
+│  │  └─ vdfcheck.py             # validates Find-GtaivInstall's Steam VDF parsing
+│  └─ presentmon/
+│     └─ Get-PresentMon.ps1   # download the pinned PresentMon CLI
+├─ python/                    # OPTIONAL richer frame-time analysis
+│  └─ analyze_frametimes.py      # same algorithm; PresentMon/MangoHud/generic CSV; JSON
 ├─ results/
 │  ├─ examples/result.example.md
 │  └─ raw/                    # per-run CSVs + JSONs (git-ignored)
-└─ samples/                   # synthetic CSVs to self-test the analyzer offline
+└─ samples/                   # CSVs to self-test the analyzer offline
+   ├─ baseline_off.presentmon.csv
+   ├─ precompiled_on.presentmon.csv
    └─ make_samples.py
 ```
 
@@ -139,13 +189,23 @@ There is no per-pipeline-compile counter exposed to the game, so the **isolated 
 count is the in-gameplay compile proxy**; the precompiler's own launch log
 (`plugins\FusionFix.shaders.log`) reports how many pipelines it warmed.
 
-## Status / provenance
+## Status / provenance — read before trusting a result
 
-The spike-detection + A/B algorithm is unit-tested in Python
-(`python/analyze_frametimes.py`, validated against synthetic before/after data);
-the PowerShell `Analyze-FrameTimes.ps1` is a line-for-line port of it. The scripts
-were authored on Linux and are **carefully written but not yet run on Windows** —
-if a script misbehaves on your machine, please open an issue with the error.
+**Everything here was authored and verified on Linux. None of the PowerShell has
+ever been run on Windows.** That is the honest state, and it shapes what to check:
+
+- The spike-detection + A/B algorithm is unit-tested in Python
+  (`python/analyze_frametimes.py`, against synthetic before/after data);
+  `Analyze-FrameTimes.ps1` is a line-for-line port of it.
+- `Find-GtaivInstall.ps1`'s **Steam VDF parsing is verified** against real Steam
+  files (`tools/cache/vdfcheck.py` mirrors it and runs on genuine data). Its
+  **registry reads — Rockstar keys, uninstall entries — have no test coverage.** Run
+  it on its own and confirm the path before anything deploys to it.
+- The ASI's container format, log file and provenance reads are likewise
+  Linux-verified only.
+
+If a script misbehaves, that is expected rather than surprising — please open an
+issue with the error.
 
 ## Credits & license
 
@@ -153,5 +213,9 @@ if a script misbehaves on your machine, please open an issue with the error.
 - [PresentMon](https://github.com/GameTechDev/PresentMon) — Intel/MS, MIT
   (downloaded, not bundled). [CapFrameX](https://www.capframex.com/) is a fine
   GUI alternative for capturing frame times if you prefer.
-- FusionFix: [ThirteenAG/GTAIV.EFLC.FusionFix](https://github.com/ThirteenAG/GTAIV.EFLC.FusionFix)
-  and the `shader-precompile` fork.
+- FusionFix: [ThirteenAG/GTAIV.EFLC.FusionFix](https://github.com/ThirteenAG/GTAIV.EFLC.FusionFix),
+  and the shader-precompiler work on branch `shader-precompile-cache` of the
+  `emansom` fork. That work is **not upstream** and is not to be filed upstream
+  without the fork owner's say-so.
+- Save games and reference caches in this repo are the fork owner's own, committed
+  deliberately so a run elsewhere can reproduce the same starting conditions.
