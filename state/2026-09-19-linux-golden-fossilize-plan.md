@@ -146,24 +146,57 @@ else changed), loading-screen D3D9 warm-up:
 | L1 on, 3 threads | 765 pipelines in 4.9 s | 4.6 s |
 | warm cache, for reference | — | ~2.0 s |
 
-**Foreign databases are not replayed in-process.** Replaying Steam's DXVK-3 bucket
-on the game's device crashed at one entry recorded by DXVK 3.1.0. Symbolized:
-`vkCreateGraphicsPipelines` → driver fault under Wine → exception dispatch →
-Social Club's exception handler, which then crashed as well. The entries passed every
-structural check (pNext structures, flags, dynamic states, SPIR-V capabilities and
-extensions, no bare module identifiers). Descriptor-heap mappings, though, are
-specific to the recording DXVK build and device limits.
-Valve replays Fossilize out-of-process with crash recovery for exactly this reason.
-In-process replay is therefore limited to entries linked to this session's own
-application/feature hash; foreign databases need `ReplayVulkanPipelinesForeign = 1`
-(experimental). The crash-safe route for them would be a **32-bit** helper process:
-on RADV any 32-bit process shares the game's cache UUID. On NVIDIA the cache is per
-application, so a helper would not help there. Not built.
+**Foreign databases: the crash was our bug, fixed in FusionFix `73156da`.**
+Replaying Steam's DXVK-3 bucket in-process used to kill the game at entry
+`2e5a4038eefd9e7b`. The earlier reading, a driver fault on foreign data followed by
+a crash in Social Club's exception handler, was wrong. What happened:
+1. Our relevance check rejected two shader modules. They declare
+   `SignedZeroInfNanPreserve`; DXVK 3.0/3.1.0 emits that, 3.1.1 uses
+   `FloatControls2` instead.
+2. Fossilize's replayer puts a module's hash in its handle map *before* asking us to
+   create it, so each rejected module stayed there as `VK_NULL_HANDLE`.
+3. A later pipeline in the same batch got both stages as null handles, and we created
+   it anyway. Fossilize's own `fossilize-replay` refuses such a pipeline; ours did not.
+4. RADV read the missing vertex shader (`radv_pipeline_init_vertex_input_state`,
+   32-bit `libvulkan_radeon.so +0x151603`).
+5. Under Wine that fault stays on the Unix side. winevulkan answers with
+   `ExitProcess(3)`, and Social Club crashed while unloading on the way out.
 
-**Cross-platform / cross-vendor, in short:** a `.foz` is valid anywhere, but warms a
-cache only where DXVK would create byte-identical pipelines on a device that
-accepts them. That means the same DXVK generation and feature set, in practice
-per driver family. Recording on each machine and replaying there always works.
+Reproduced outside the game with Fossilize's replayer in native 64-bit, native
+32-bit, and 32-bit Windows under GE-Proton11's wine.
+
+Steam's replay never met this, because Fossilize's replayer filtered the entry: it
+renders to D24S8, a depth format RDNA4 doesn't support. Over the whole bucket Steam's
+replayer had 3205 "not supported", 562 "invalid create info" (its null-handle guard)
+and 0 crashes.
+
+Every replayed object now passes three checks:
+- **relevant:** the existing check against what DXVK used on this device;
+- **supported:** Fossilize's real feature filter (`cli/fossilize_feature_filter.cpp`),
+  set up from DXVK's actual device;
+- **complete:** no null module or library, and no derivative without a base.
+
+With `ReplayVulkanPipelinesForeign = 1` over all 4 foreign inputs on Linux/RADV,
+three runs came out identical, with no crash:
+
+| foreign entries | count |
+|---|---|
+| created | 2586 |
+| not relevant | 15596 |
+| not supported (D24S8) | 496 |
+| incomplete | 116 |
+| failed | 0 |
+
+The foreign pass runs after the own replay, on one lowest-priority thread. It took
+46.6 s the first time and ~3 s once cached, and the loading-screen pass is unchanged.
+Foreign replay is still off by default. No out-of-process helper is needed.
+
+**Cross-platform / cross-vendor, in short:** a `.foz` can be read anywhere. A
+pipeline in it is safe to replay only on a device that supports everything it uses:
+Fossilize's feature filter decides that per pipeline. A replay that skips the filter
+can crash the game. It warms a cache only where DXVK would create byte-identical
+pipelines, which means the same DXVK generation and feature set, in practice per
+driver family. Recording on each machine and replaying there always works.
 
 ## Legal status (researched 2026-09-19; research, not legal advice)
 

@@ -13,11 +13,11 @@ the vendored DirectX SDK) just to run one experiment.
 ```
 repo    emansom/GTAIV.EFLC.FusionFix
 branch  shader-precompile-cache
-commit  69e37df  "shaders: replay the own Vulkan recording on parallel workers"
+commit  73156da  "shaders: make foreign Vulkan replay safe in-process"
 built   MSVC 14.51 (x86, /MT) via msvc-wine, the same toolchain and Platform=Win32
         target the project's CI uses
-sha256  86917a4af3131ae50c79ee3410da95884f5eeceb373e0b45c3081474e80d8e14
-size    6,323,200 bytes
+sha256  596d847e6086b9151539f40485b259ca7b29878a0db44ec56a87d1e41a267816
+size    6,409,728 bytes
 ```
 
 **Vulkan-level record and replay (new, off by default).**
@@ -35,8 +35,13 @@ A Windows test is wanted:
 3. Launch twice more, `ReplayVulkanPipelines` off then on, clearing in between.
 4. Report the `precompile complete in` time of each.
 
-Read a recording with `python tools\cache\fozinfo.py <file>`. Leave
-`ReplayVulkanPipelinesForeign` at 0: it can crash the game.
+Read a recording with `python tools\cache\fozinfo.py <file>`.
+
+`ReplayVulkanPipelinesForeign = 1` also replays other machines' recordings dropped in
+`plugins\pipelinecache\`, and the player's own Steam Fossilize downloads. From
+`73156da` on this is safe: every object passes Fossilize's feature filter and a
+null-handle check first. It stays off by default. With `ReplayVulkanPipelinesTrace = 1`
+the log gives a skip reason for each entry.
 
 **The log opens with the install's shader set** (`[FxcHashes]`): the directory, the
 effect and shader counts, and a digest of the whole set, then one line per effect.
@@ -73,7 +78,7 @@ Get-FileHash .\prebuilt\GTAIV.EFLC.FusionFix.asi -Algorithm SHA256
 git -C <fusionfix-clone> log --oneline -1 origin/shader-precompile-cache
 ```
 
-If that branch has moved past `69e37df`, this binary is **stale**. Build from source
+If that branch has moved past `73156da`, this binary is **stale**. Build from source
 or ask for a fresh one. A stale ASI is the worst failure mode here because everything
 still appears to work; it would just be measuring the wrong build.
 
