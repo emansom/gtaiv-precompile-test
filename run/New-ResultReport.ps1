@@ -17,7 +17,7 @@ param(
     [Parameter(Mandatory=$true)][string]$VerdictJson,
     [string]$VerifyJson,
     [int]$RouteSeconds = 90,
-    [string]$FusionFixBranch = 'shader-precompile',
+    [string]$FusionFixBranch = 'shader-precompile-cache',
     [string]$FusionFixCommit,
     [string]$Notes,
     [string]$HarnessVersion = 'v1',

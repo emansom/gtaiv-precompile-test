@@ -7,8 +7,8 @@
 | CPU | AMD Ryzen 7 5800X3D (8C/16T) |
 | OS | Windows 11 Pro 23H2 (build 22631.4169) |
 | RAM | 32 GB |
-| FusionFix ASI | `shader-precompile` @ `abc1234` |
-| Precompiler | verified -- 1734 shaders, 2103 pipelines in 7.8 s at launch |
+| FusionFix ASI | `shader-precompile-cache` @ `abc1234` |
+| Precompiler | verified -- 1706 shaders, 2103 pipelines in 7.8 s at launch |
 | Route | 90s fixed drive, driver shader cache cleared before each run |
 | Harness | gtaiv-precompile-test v1 |
 
@@ -29,7 +29,7 @@
 - frames OFF/ON: 5400 / 5400; duration 93.7s / 92.5s
 - capture: PresentMon (present-to-present); source `presentmon`
 - spike gate: excess>=8ms AND (dt>=1.5x baseline OR >5*MAD), window=61
-- precompiler: 1734 shaders warmed at launch
+- precompiler: 1706 shaders warmed at launch
 - notes: cold-cache first-traversal baseline; downtown Algonquin loop
 
 </details>

@@ -9,8 +9,10 @@
 .DESCRIPTION
   Checks three things:
    1. the precompiler ASI is present in plugins\;
-   2. the precompiler's LOG shows it created ~1734 shaders (bounded set) and
-      warmed pipelines, with a launch duration;
+   2. the precompiler's LOG shows it created ~1706 shaders (FusionFix's stock
+      103 .fxc files; a stock Windows install logged exactly 1706) and warmed
+      pipelines, with a launch duration. An install with extra .fxc files logs
+      more -- the Linux rig's four extra vehicle effects make it 1734;
    3. (visual) the "Building shaders..." loading-screen overlay appeared this
       launch -- confirm with -OverlaySeen or the interactive prompt.
 
@@ -26,7 +28,7 @@
 param(
     [Parameter(Mandatory=$true)][string]$GamePath,
     [string[]]$LogPath,
-    [int]$ExpectedShaders = 1734,
+    [int]$ExpectedShaders = 1706,
     [double]$Tolerance = 0.15,     # +/-15% around the expected shader count
     [switch]$OverlaySeen,
     [string]$AsiName = 'GTAIV.EFLC.FusionFix.asi',

@@ -56,10 +56,13 @@ by comparing the same drive, cold, OFF vs ON: **PASS** = the isolated spikes see
 OFF drop to ~0 ON and the p99.9 / max frame times collapse toward the median.
 
 **Record whether `VK_EXT_graphics_pipeline_library` is active** (grep the DXVK log
-for `Graphics pipeline libraries`). It decides how much there is to remove: with GPL
-on, DXVK front-loads the work at shader-create time and most of this stutter is
-already gone. An OFF run with no spikes and GPL on is a correct *"nothing to fix in
-this configuration"*, not a broken measurement to retry until it looks bad.
+for `Graphics pipeline libraries`) **and which Vulkan driver ran** (the precompiler
+logs a `vulkan driver:` line). How much stutter there is to remove depends on the
+driver, not just on GPL. With GPL on, Linux/RADV had almost nothing left to remove
+(+2 spikes cold vs warm). With GPL on, Windows/AMD's proprietary driver lost ~18 s
+per 90 s drive cold, and the precompiler cut that by 73%. An OFF run with no spikes is only
+a real "nothing to fix here" if the run was **provably cold**: see `CLAUDE.md`. A
+warm driver cache produces the same flat line.
 
 ## Requirements
 
@@ -136,13 +139,15 @@ gtaiv-precompile-test/
 │  ├─ GTAIV.EFLC.FusionFix.ini   # settings TEMPLATE, don't blindly overwrite an existing one
 │  └─ README.md                  # commit, toolchain, hash, how to verify + install
 ├─ cache/linux-amd-dxvk/      # reference caches from the development machine
-│  ├─ FusionFix.pipelinecache.baseline.bin  # DEPLOY THIS (2001 pipelines, 525 shaders)
+│  ├─ FusionFix.pipelinecache.baseline.bin  # DEPLOY THIS (1954 pipelines, 513 shaders)
 │  ├─ FusionFix.pipelinecache.f21-ms0.bin   # the full capture it came from (reference only)
-│  └─ README.md                             # why the baseline and not the full capture
+│  └─ README.md                             # why the baseline, and why it is filtered
 ├─ saves/                     # same starting point => key sets are comparable
 │  ├─ profile/SGTA400..414       # save games from the Linux prefix
-│  └─ README.md                  # the profile folder is per-user; cloud saves can clobber
+│  └─ README.md                  # per-user profile folder; saves only appear in their own episode
 ├─ state/                     # notes shared between the Linux and Windows sessions
+│  ├─ 2026-09-19-windows-shaderdir.md   # Run 1 on Windows: resolves win32_30, same as Linux
+│  ├─ 2026-09-19-windows-stutter-ab.md  # Run 2 on Windows: -73% stutter; read its CORRECTION
 │  └─ README.md
 ├─ config/
 │  └─ test.config.example.psd1   # copy to test.config.psd1 and edit
@@ -152,7 +157,7 @@ gtaiv-precompile-test/
 │  ├─ Install-Saves.ps1          # copy saves/profile into the per-user GTA IV profile
 │  ├─ Analyze-FrameTimes.ps1     # spike detection + A/B PASS/FAIL verdict
 │  ├─ Capture-Frames.ps1         # PresentMon wrapper -> CSV
-│  ├─ Clear-ShaderCache.ps1      # clear the vendor VULKAN cache + any *.dxvk-cache
+│  ├─ Clear-ShaderCache.ps1      # clear DXVK's %LOCALAPPDATA%\dxvk, Steam's per-game shadercache, vendor caches
 │  ├─ Deploy-Precompiler.ps1     # deploy the ASI + toggle precompile ON/OFF
 │  ├─ Verify-Precompiler.ps1     # confirm the precompiler ran (reads FusionFix.shaders.log)
 │  ├─ Get-HardwareInfo.ps1       # GPU+driver / CPU / OS -> JSON
@@ -163,7 +168,8 @@ gtaiv-precompile-test/
 │  │  ├─ cacheinfo.py            # index one by seeking to its metadata section
 │  │  ├─ basecov.py              # how much of a capture a baseline covers
 │  │  ├─ convert_cache.py        # one-off shim from the old 3-file format
-│  │  ├─ fxcgap.py               # which of RAGE's 1734 shaders a capture reached
+│  │  ├─ filter_cache.py         # drop keys naming given shaders (how the baseline was cleaned)
+│  │  ├─ fxcgap.py               # which of the install's .fxc shaders (1706 stock) a capture reached
 │  │  ├─ fxc_hashes.c            # dump shader hashes from the game's .fxc database
 │  │  ├─ fxc_passes.c            # dump technique/pass + render state from .fxc
 │  │  └─ vdfcheck.py             # validates Find-GtaivInstall's Steam VDF parsing
@@ -198,21 +204,24 @@ count is the in-gameplay compile proxy**; the precompiler's own launch log
 
 ## Status / provenance — read before trusting a result
 
-**Everything here was authored and verified on Linux. None of the PowerShell has
-ever been run on Windows.** That is the honest state, and it shapes what to check:
+**The harness was written on Linux and has been run end to end on Windows once**
+(2026-09-19, Windows 11 + AMD). That run found and fixed five bugs that broke every
+run: the analyzer crash, the analyze-phase argument binding, the report's number
+formatting, the ini section match that could leave the OFF run silently ON, and the
+cache clear that left DXVK's and Steam's caches warm. Details are in
+`state/2026-09-19-windows-stutter-ab.md`. What that means for trusting a result:
 
 - The spike-detection + A/B algorithm is unit-tested in Python
   (`python/analyze_frametimes.py`, against synthetic before/after data);
-  `Analyze-FrameTimes.ps1` is a line-for-line port of it.
+  `Analyze-FrameTimes.ps1` is a line-for-line port of it, now also exercised on
+  real Windows captures.
 - `Find-GtaivInstall.ps1`'s **Steam VDF parsing is verified** against real Steam
   files (`tools/cache/vdfcheck.py` mirrors it and runs on genuine data). Its
   **registry reads — Rockstar keys, uninstall entries — have no test coverage.** Run
   it on its own and confirm the path before anything deploys to it.
-- The ASI's container format, log file and provenance reads are likewise
-  Linux-verified only.
+- One machine is not many. NVIDIA and Intel on Windows have not been run at all.
 
-If a script misbehaves, that is expected rather than surprising — please open an
-issue with the error.
+If a script misbehaves, please open an issue with the error.
 
 ## Credits & license
 

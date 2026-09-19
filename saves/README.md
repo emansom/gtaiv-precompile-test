@@ -36,8 +36,17 @@ auto-detects it (and backs up any saves already there).
 
 ## Known ways this goes wrong
 
-- **Social Club cloud saves can overwrite local ones** on the next launch. If a save
-  you expect is missing in-game, go offline or disable cloud saves, then copy again.
+- **Saves are episode-scoped, so launch the matching episode.** Installing the file
+  is not enough. A save only shows up in the load menu of the episode it belongs to
+  (GTA IV, The Lost and Damned or The Ballad of Gay Tony, picked from the Complete
+  Edition's episode menu). On the first Windows run, `SGTA413` (TLAD, "Angels In
+  America") seemed to be missing until The Lost and Damned was launched. The file
+  had been there all along. The A/B route used a TBoGT save.
+- **Social Club cloud saves can overwrite local ones** on the next launch. That was
+  not observed on the first Windows run: the files stayed byte-identical to
+  `saves/profile/` before and after every run. If a save you expect is missing
+  in-game, first check you launched the right episode (above), then go offline or
+  disable cloud saves and copy again.
 - **Not included on purpose:** `ProfileSettings` (the game's own graphics settings)
   and `ControlMap.dat`. Those are per-machine, and overwriting the Windows ones with
   Linux values would change the very settings the test is supposed to observe. Only

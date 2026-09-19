@@ -80,9 +80,15 @@ not treat the A/B as optional busywork; it is the outstanding validation.
 
 **Do not analyse the result here.** The owner mounts this partition from Linux and
 reads `plugins\FusionFix.pipelinecache.f*-ms*.bin`, `plugins\FusionFix.shaders.log`,
-`GTAIV_d3d9.log` and the Claude Code transcript directly. The two lines that decide
-the experiment are in the log: `shader directory in use:` and the replay's
-`no-shader` count (0 of 2001 on Linux).
+`GTAIV_d3d9.log` and the Claude Code transcript directly. The line that decides
+the experiment is `shader directory in use:` in the log.
+
+Don't read the replay's `no-shader` count as a portability check. It is 0 on any
+install, because the cache file carries the bytecode of every shader its keys name
+and replay recreates them from the file. Whether a warmed pipeline is ever *used*
+depends on whether this install's `.fxc` files contain the same shaders. The owner
+answers that on Linux by intersecting the keys' shader hashes with this install's
+shader set.
 
 **Then continue to Run 2**, the PresentMon stutter A/B below, while the game is set
 up and the saves are in place. Keep the cache file produced above — it is what that
@@ -111,14 +117,23 @@ cache**: once with the precompiler **OFF** (cold → should stutter) and once **
 (should not). **PASS** = the isolated compile spikes seen OFF drop to ~0 ON, and
 p99.9/max frame time collapse to the median.
 
-**Record whether `VK_EXT_graphics_pipeline_library` is active** — grep the DXVK log
-for `Graphics pipeline libraries`. It decides how much there is to remove: with GPL
-on, DXVK does the expensive work at shader-create time and the stutter this test
-measures is largely already absent (measured on Linux: +2 isolated spikes cold vs
-warm, i.e. nothing to remove). With GPL off, pipelines compile lazily on first draw
-and the stutter is real. **An OFF run with no spikes and GPL on is not a failure of
-the precompiler — it is a correct "nothing to fix here" for that configuration**, and
-should be reported as such rather than retried until it looks bad.
+**Record whether `VK_EXT_graphics_pipeline_library` is active.** Grep the DXVK log
+for `Graphics pipeline libraries`, and record the Vulkan driver too: the precompiler
+logs it as `vulkan driver:`. How much GPL removes on its own **depends on the
+driver**, so GPL being on does not tell you what to expect:
+
+| stack | GPL | cold OFF | cold ON |
+|---|---|---|---|
+| Linux, RADV (Mesa) | on | +2 isolated spikes vs warm, i.e. almost nothing to remove | — |
+| Windows 11, AMD proprietary | on | 56–68 spikes, ~18.4 s lost per 90 s | 12–19 spikes, ~5.0 s lost |
+
+**A flat OFF run is only a real result if the run was provably cold.** Before you
+report "nothing to fix", check that the DXVK log says `Created cache file`, not
+`Found cache file`, and that `Clear-ShaderCache` reported every store empty. A warm
+driver cache produces exactly the flat OFF run a GPL-friendly driver would. On
+Windows it did: Steam's AMD `.parc` cache stayed warm and cut the OFF stutter
+roughly 20-fold. If the run is provably cold and still flat, report it as "nothing
+to fix on this stack" rather than retrying until it looks bad.
 
 This does **not** affect the cache data: the keys are identical either way, so a
 contributor never needs to change their DXVK config to contribute coverage.
@@ -266,7 +281,8 @@ fully closed and relaunched. Then:
 
 Same gates, plus: after launch, the harness runs `Verify-Precompiler` — confirm
 with the tester that the **"Building shaders…" overlay appeared** and that the log
-shows ~1734 shaders. If it says **NOT verified**, the ASI may not have loaded —
+shows ~1706 shaders (FusionFix's stock set; more only if the install has extra `.fxc`
+files). If it says **NOT verified**, the ASI may not have loaded —
 fix the install before trusting the result (`.\run\Verify-Precompiler.ps1
 -GamePath "<game>" -LogPath "<precompile log>"`). The tester drives the **same
 route the same way**.

@@ -12,7 +12,8 @@
     RouteSeconds    = 90
 
     # ---- Precompiler ASI + how to toggle it ON/OFF --------------------------
-    # Built .asi from github.com/emansom/GTAIV.EFLC.FusionFix branch shader-precompile.
+    # Built .asi from github.com/emansom/GTAIV.EFLC.FusionFix branch shader-precompile-cache
+    # (prebuilt\ has one; shader-precompile is an older diverged line).
     # If it's already installed in the game's plugins\, you can leave AsiPath $null.
     AsiPath         = $null
     AsiName         = 'GTAIV.EFLC.FusionFix.asi'
@@ -29,7 +30,7 @@
     ConfigKey       = 'PrecompileShaders'
 
     # ---- Provenance for the shared result -----------------------------------
-    FusionFixBranch = 'shader-precompile'
+    FusionFixBranch = 'shader-precompile-cache'
     FusionFixCommit = $null      # set the ASI's git commit if you know it
     Notes           = $null      # anything worth sharing (route description, quirks)
 }

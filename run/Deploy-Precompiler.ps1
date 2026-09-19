@@ -5,7 +5,7 @@
   toggle the precompile feature ON or OFF for an A/B run.
 
 .DESCRIPTION
-  The precompiler ships in the FusionFix 'shader-precompile' branch
+  The precompiler ships in the FusionFix 'shader-precompile-cache' branch
   (github.com/emansom/GTAIV.EFLC.FusionFix). Provide the built .asi via -AsiPath,
   or point -GamePath at a game that already has it in plugins\.
 

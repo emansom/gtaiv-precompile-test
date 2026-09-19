@@ -7,6 +7,20 @@ step-by-step stutter A/B built on top of it.
 **Every run — yours and any third-party tester's — uses the latest DXVK.** That is a
 requirement of the design, not a preference of this machine: see the next section.
 
+> **Status after the first Windows run (2026-09-19, Windows 11 + AMD proprietary).**
+> Both questions below now have a first answer; the details are in `state/`.
+> 1. **Same shader directory: yes, on AMD.** Windows resolved `win32_30`, the same
+>    as Linux. NVIDIA is still untested, and that is the next hardware worth running.
+> 2. **Stutter: the precompiler works on Windows.** On a truly cold cache, lost frame
+>    time fell from ~18.4 s to ~5.0 s per 90 s (−73%), and p99 from ~113 ms to
+>    ~15 ms. A ~2 s stall remains in *both* arms and only disappears when the
+>    driver's own Vulkan cache is warm. That stall is still being investigated.
+>
+> The prebuilt ASI has since been rebuilt (`d1c6119`). The old one reported
+> `backend = native` on Windows while running on DXVK, and recorded a placeholder
+> driver version. The shipped baseline also lost 47 keys that only named shaders from
+> non-stock `.fxc` files on the Linux install.
+
 ## What this session is for
 
 Two questions, both wanted. The first gates the whole "golden cache" plan:
@@ -54,7 +68,9 @@ hence this handoff.
 
 Linux measured (not assumed): resolves to **`win32_30`**. Proof: of the 1734 shaders
 in `update/common/shaders/win32_30`, 498 hashes match captured keys; every other
-directory matches **0**.
+directory matches **0**. (1734 is this Linux install: FusionFix's stock 1706 plus 28
+from four extra vehicle `.fxc` files it happens to carry. A stock install has 1706;
+Windows logged exactly that.)
 
 ## The whole Windows session, in order
 
@@ -95,11 +111,13 @@ provenance: <os> / <adapter> / driver <ver> / backend <DXVK|native D3D9>
   this field. That is not a failure; it is the answer we need, and the cache format
   already records it so nothing silently corrupts.
 
-There is a second, independent tell in the same log, and it needs no interpretation:
-the replay reports **`no-shader`** skips. On Linux that is `0` of 2001 pipelines. If
-Windows resolved a different shader directory, the shipped baseline names shaders
-that install never creates, and this number will be large. A big `no-shader` count
-with a `win32_30` line would mean something else is wrong and is worth stopping for.
+**The replay's `no-shader` count is NOT a second tell.** An earlier version of this
+file said it was, and that was wrong. The cache file carries the bytecode of every
+shader its keys name, so replay recreates those shaders from the file and reports
+`0 no-shader` on *any* install, whatever directory it resolved. Whether a warmed
+pipeline is ever used depends on whether the install's own `.fxc` files contain the
+same shaders. That is answered offline, by intersecting the keys' shader hashes with
+the install's shader set, and it is how the 47 non-stock baseline keys were found.
 
 ## Where the code is
 
@@ -136,7 +154,9 @@ local one, and logs why.
 
 ## What is already settled (don't re-derive)
 
-- **Replay works.** 2001 of 2001 pipelines warmed, 0 no-shader / 0 no-decl / 0 no-RT.
+- **Replay works.** 2001 of 2001 pipelines warmed on Linux and 2099 of 2099 on
+  Windows, 0 no-shader / 0 no-decl / 0 no-RT. (The baseline is now 1954 keys, see
+  the status note at the top.)
 - **The shipped baseline covers 99.3%** of every pipeline ever observed locally
   (1985 of 1999 at the time of measurement), verified two independent ways: offline
   reconstruction of `ReplayPipelineKey` and the runtime's own count.
@@ -149,8 +169,10 @@ local one, and logs why.
 - **Antialiasing and other settings only ADD keys**, never move RT formats, so
   merging captures from different settings is safe.
 - **GPL is irrelevant to the DATA.** Keys are identical whether
-  `VK_EXT_graphics_pipeline_library` is on or off; GPL only changes whether warming
-  pays off. A contributor does **not** need to change their DXVK config.
+  `VK_EXT_graphics_pipeline_library` is on or off; GPL only changes how much warming
+  pays off, and that depends on the driver (almost nothing on RADV, −73% on AMD's
+  Windows driver, both with GPL on). A contributor does **not** need to change their
+  DXVK config.
 - **Coverage is saturated.** Three separate attempts to broaden it returned ~nothing:
   synthesising keys from the `.fxc` database (24/432 exact vs a 23/432 control), a
   full 10-district map tour (+0 shaders), and spawning 51 vehicles (+2 shaders). The
