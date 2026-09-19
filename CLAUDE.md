@@ -89,8 +89,23 @@ notepad config\test.config.psd1      # or edit it yourself
 ```
 
 Fill in:
-- `GamePath` — the folder with `GTAIV.exe` (leave `$null` to auto-detect Steam/
-  Rockstar installs; verify the auto-detect found it).
+- `GamePath` — the folder with `GTAIV.exe`. **Leave `$null` and let it auto-detect**:
+  the harness asks Steam and the Rockstar Games Launcher where the game is rather
+  than guessing Program Files. Run it directly first and confirm the answer:
+
+  ```powershell
+  .\run\Find-GtaivInstall.ps1 -Json .\results\raw\installs.json
+  ```
+
+  It reads Steam's root from the registry, walks **every** library in
+  `libraryfolders.vdf` (the game is often on a second drive), resolves `installdir`
+  from `appmanifest_12210.acf` (12210 = GTA IV / Complete Edition, 12220 = EFLC),
+  and also checks the Rockstar Games Launcher / retail registry keys and the Windows
+  uninstall entries. It only returns a folder that really contains `GTAIV.exe`.
+
+  If **more than one** install is found it uses the first (Steam preferred) and warns
+  — set `GamePath` explicitly to pick the other. If **none** is found, set `GamePath`
+  by hand; don't let the harness run against a guessed path.
 - `AsiPath` — the built precompiler `.asi`, if it isn't already in `plugins\`.
 - **Toggle** — how to turn the precompile step ON/OFF:
   - Preferred `ToggleMode='ConfigKey'`: set `ConfigFile`/`ConfigSection`/

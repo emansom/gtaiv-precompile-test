@@ -42,7 +42,24 @@ function Resolve-GamePath {
     if ($Config.GamePath -and (Test-Path -LiteralPath $Config.GamePath)) {
         return (Resolve-Path -LiteralPath $Config.GamePath).Path
     }
-    # Try to auto-locate GTAIV.exe under common Steam/Rockstar library roots.
+
+    # Ask Steam and the Rockstar Games Launcher where the game is, rather than
+    # guessing Program Files. Steam libraries live on whatever drive the user chose,
+    # so the old hardcoded candidates missed most installs. See Find-GtaivInstall.ps1.
+    try {
+        $installs = & "$PSScriptRoot\Find-GtaivInstall.ps1" 6>$null
+        if ($installs) {
+            # Find-GtaivInstall already prefers Steam, then Rockstar, then uninstall
+            # entries, and only returns directories that really contain GTAIV.exe.
+            $first = @($installs)[0]
+            if ($first -and $first.ExeDir) { return $first.ExeDir }
+        }
+    } catch {
+        Write-Verbose "Find-GtaivInstall.ps1 failed: $($_.Exception.Message)"
+    }
+
+    # Last resort: the default install locations, for the case where the registry is
+    # unreadable (no elevation, damaged install) but the game is where it usually is.
     $candidates = @(
         "$env:ProgramFiles(x86)\Steam\steamapps\common\Grand Theft Auto IV\GTAIV",
         "$env:ProgramFiles\Rockstar Games\Grand Theft Auto IV\GTAIV",
