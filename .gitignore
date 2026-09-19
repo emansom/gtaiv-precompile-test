@@ -4,6 +4,7 @@ results/raw/
 results/result.md
 results/result-followup.md
 results/result-final.md
+results/handoff-to-linux.md
 results/result.json
 
 # Tester's local config + the downloaded PresentMon binary.
