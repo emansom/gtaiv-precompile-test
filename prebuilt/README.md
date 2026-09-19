@@ -13,20 +13,30 @@ the vendored DirectX SDK) just to run one experiment.
 ```
 repo    emansom/GTAIV.EFLC.FusionFix
 branch  shader-precompile-cache
-commit  c1e1c58  "shaders: record DXVK's Vulkan pipelines in-process with Fossilize"
+commit  69e37df  "shaders: replay the own Vulkan recording on parallel workers"
 built   MSVC 14.51 (x86, /MT) via msvc-wine, the same toolchain and Platform=Win32
         target the project's CI uses
-sha256  a17de64554f1e9a8d9874006aa81e97b6a50b358c9b58b07f41717562d55bcc7
-size    6,199,808 bytes
+sha256  86917a4af3131ae50c79ee3410da95884f5eeceb373e0b45c3081474e80d8e14
+size    6,323,200 bytes
 ```
 
-**Vulkan-level recording (new, off by default).** With `CaptureVulkanPipelines = 1`
-under `[SHADERS]` the ASI also records the Vulkan pipelines DXVK creates to
-`plugins\FusionFix.vkpipelines.foz`, a Fossilize database. It needs no Vulkan layer;
-the log shows `[VkCapture] hooked vkGetInstanceProcAddr in vulkan-1.dll` on Windows.
-A recording from a Windows machine is wanted: it shows how well Steam's crowd data
-and a Linux recording match what DXVK builds on AMD's Windows driver. Read one with
-`python tools\cache\fozinfo.py <file>`.
+**Vulkan-level record and replay (new, off by default).**
+- `CaptureVulkanPipelines = 1` under `[SHADERS]`: the ASI records the Vulkan pipelines
+  DXVK creates to `plugins\FusionFix.vkpipelines.foz`, a Fossilize database. It needs
+  no Vulkan layer. The log shows `[VkCapture] hooked vkGetInstanceProcAddr in
+  vulkan-1.dll` on Windows.
+- `ReplayVulkanPipelines = 1`: replays that recording on DXVK's own device in the
+  background from startup, to warm the driver cache. On Linux, with a cold cache, it
+  cut the loading-screen warm-up from 18.0 s to 4.6 s.
+
+A Windows test is wanted:
+1. Record one session with both keys on.
+2. Clear the driver cache (`Clear-ShaderCache.ps1`).
+3. Launch twice more, `ReplayVulkanPipelines` off then on, clearing in between.
+4. Report the `precompile complete in` time of each.
+
+Read a recording with `python tools\cache\fozinfo.py <file>`. Leave
+`ReplayVulkanPipelinesForeign` at 0: it can crash the game.
 
 **The log opens with the install's shader set** (`[FxcHashes]`): the directory, the
 effect and shader counts, and a digest of the whole set, then one line per effect.
@@ -63,7 +73,7 @@ Get-FileHash .\prebuilt\GTAIV.EFLC.FusionFix.asi -Algorithm SHA256
 git -C <fusionfix-clone> log --oneline -1 origin/shader-precompile-cache
 ```
 
-If that branch has moved past `c1e1c58`, this binary is **stale**. Build from source
+If that branch has moved past `69e37df`, this binary is **stale**. Build from source
 or ask for a fresh one. A stale ASI is the worst failure mode here because everything
 still appears to work; it would just be measuring the wrong build.
 

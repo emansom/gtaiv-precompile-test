@@ -120,6 +120,51 @@ Tools: `fossilize-list`, `fossilize-convert-db` and `fossilize-merge-db` were bu
 `/run/user/1000/zs/fz-build/cli/` for the research. That is tmpfs, so rebuild from
 ValveSoftware/Fossilize after a reboot.
 
+## The replay side (L1), built and measured
+
+FusionFix `898c762` + `69e37df`, `ReplayVulkanPipelines = 1`. From the moment DXVK
+creates its device, lowest-priority workers replay this PC's own
+`FusionFix.vkpipelines.foz` on that device and destroy each pipeline as soon as it
+exists; the point is the driver cache.
+
+**It has to run in the game's process, and in its bitness.** RADV's
+`pipelineCacheUUID` differs by ABI on this machine: 64-bit `fa708dc4…`, 32-bit
+`590ac868…`. Steam's Mesa cache folder has one directory per UUID. Steam's own
+pre-cache replay runs 64-bit `fossilize_replay` and filled **257 MB** of 64-bit
+cache that 32-bit GTA IV never reads; the game's 32-bit directory held 3.9 MB,
+all compiled by the game itself. **So Steam's Shader Pre-Caching buys 32-bit GTA
+IV on Linux essentially nothing**, and a 64-bit helper process would repeat that.
+In-process also hits on drivers that key their cache per application.
+
+**Measured, cold 32-bit cache** (GTA IV's own Mesa cache directory cleared, nothing
+else changed), loading-screen D3D9 warm-up:
+
+| | L1 replay | warm-up |
+|---|---|---:|
+| L1 off | — | 18.0 s |
+| L1 on, 1 thread | 765 pipelines in 9.7 s | 8.7 s |
+| L1 on, 3 threads | 765 pipelines in 4.9 s | 4.6 s |
+| warm cache, for reference | — | ~2.0 s |
+
+**Foreign databases are not replayed in-process.** Replaying Steam's DXVK-3 bucket
+on the game's device crashed at one entry recorded by DXVK 3.1.0. Symbolized:
+`vkCreateGraphicsPipelines` → driver fault under Wine → exception dispatch →
+Social Club's exception handler, which then crashed as well. The entries passed every
+structural check (pNext structures, flags, dynamic states, SPIR-V capabilities and
+extensions, no bare module identifiers). Descriptor-heap mappings, though, are
+specific to the recording DXVK build and device limits.
+Valve replays Fossilize out-of-process with crash recovery for exactly this reason.
+In-process replay is therefore limited to entries linked to this session's own
+application/feature hash; foreign databases need `ReplayVulkanPipelinesForeign = 1`
+(experimental). The crash-safe route for them would be a **32-bit** helper process:
+on RADV any 32-bit process shares the game's cache UUID. On NVIDIA the cache is per
+application, so a helper would not help there. Not built.
+
+**Cross-platform / cross-vendor, in short:** a `.foz` is valid anywhere, but warms a
+cache only where DXVK would create byte-identical pipelines on a device that
+accepts them. That means the same DXVK generation and feature set, in practice
+per driver family. Recording on each machine and replaying there always works.
+
 ## Legal status (researched 2026-09-19; research, not legal advice)
 
 Full report on the Linux machine: `re/shader-precompile/legal-steam-shader-cache.md`.
