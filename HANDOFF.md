@@ -51,10 +51,28 @@ Linux measured (not assumed): resolves to **`win32_30`**. Proof: of the 1734 sha
 in `update/common/shaders/win32_30`, 498 hashes match captured keys; every other
 directory matches **0**.
 
-## The first thing to run on Windows
+## The whole Windows session, in order
 
-Cheap and decisive. Launch GTA IV once with the new ASI and capture enabled, then
-read the log line:
+1. **Find the game** — confirm before anything deploys to it:
+   `.\run\Find-GtaivInstall.ps1 -Json .\results\raw\installs.json`
+   Its VDF parsing is verified against real Steam data; its **registry reads are not
+   tested at all**. If it returns nothing or something surprising, set `GamePath` by
+   hand rather than letting a guessed path get written to.
+2. **Install the latest DXVK** — 32-bit `d3d9.dll` beside `GTAIV.exe`. Confirm a
+   `GTAIV_d3d9.log` appears on launch; no log means native D3D9 and the run must not
+   be collected.
+3. **Deploy** the `.asi` built from branch `shader-precompile-cache` and
+   `data\plugins\FusionFix.pipelinecache.baseline.bin` into `<game>\plugins\`.
+4. **Run once** with `PrecompileShaders = 1`, `CaptureDrawKeys = 1`. Load a save,
+   drive a few minutes, quit **through the pause menu** (never kill the process).
+5. Optionally **run again** with `PrecompileShaders = 0` for a clean coverage
+   capture — at `1`, most of what gets recorded is the replay's own draws.
+6. Reboot. **Do not analyse anything here**; the Linux side reads it off the mount.
+
+## What step 4 decides
+
+That single run answers the question this session exists for. Launch once, then read
+the log line:
 
 ```
 shader directory in use: <name>
@@ -67,8 +85,11 @@ provenance: <os> / <adapter> / driver <ver> / backend <DXVK|native D3D9>
   this field. That is not a failure; it is the answer we need, and the cache format
   already records it so nothing silently corrupts.
 
-Then run `cacheinfo.py` (in `tools/cache/`) on the produced
-`plugins\FusionFix.pipelinecache.f*-ms*.bin` and paste its output back.
+There is a second, independent tell in the same log, and it needs no interpretation:
+the replay reports **`no-shader`** skips. On Linux that is `0` of 2001 pipelines. If
+Windows resolved a different shader directory, the shipped baseline names shaders
+that install never creates, and this number will be large. A big `no-shader` count
+with a `win32_30` line would mean something else is wrong and is worth stopping for.
 
 ## Where the code is
 
@@ -152,6 +173,23 @@ open question in the upstream report) — but do not file anything.
 
 ## Sharing state back
 
-Commit findings to this repo under `state/` (see `state/README.md`). The Linux side
-pulls from here. Keep raw artifacts (cache files, logs) out of git unless small;
-paste `cacheinfo.py` output, which is a few lines.
+**Primary channel: the NTFS partition.** The owner mounts the Windows install from
+Linux afterwards, so the Windows session does **not** need to analyse anything, does
+not need Python, and does not need `gh`. Capture, quit, reboot. These are the files
+the Linux side reads off the mount:
+
+```
+<game>\plugins\FusionFix.pipelinecache.f*-ms*.bin   the capture (shaderDir is in its metadata)
+<game>\plugins\FusionFix.shaders.log                this run's log, truncated per process
+<game>\GTAIV_d3d9.log                               DXVK version + pipeline-library status
+C:\Users\<user>\.claude\projects\...                the Windows session transcript
+```
+
+`FusionFix.shaders.log` exists precisely because of this handoff: the ASI used to log
+only via `OutputDebugString`, which nothing captures on Windows without a debugger
+attached and which leaves **nothing on disk to mount**. If you find no such file, the
+deployed ASI predates commit `9eb5766` and the log for that run is unrecoverable.
+
+Secondary channel: commit notes to `state/` (see `state/README.md`) for anything the
+other side should read without a mount — conclusions, surprises, anything that
+contradicts this file. Keep large artifacts out of git; the mount handles those.
