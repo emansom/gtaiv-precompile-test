@@ -7,19 +7,28 @@
 # 📊 Hardware Test Results — GTA IV Shader Precompiler
 
 This is the crowd-sourced results board for the **FusionFix launch-time shader
-precompiler** for **Grand Theft Auto IV** (Complete Edition, native Direct3D 9 on
-Windows).
+precompiler** for **Grand Theft Auto IV** (Complete Edition, **running the latest
+DXVK**) on Windows.
 
-**What we're verifying:** GTA IV compiles GPU shaders/pipelines the *first time*
-it needs them during gameplay, which causes **stutter** (isolated frame-time
-spikes). The precompiler compiles them all **at launch** instead. This board
+**What we're verifying:** a Vulkan pipeline is built the *first time* the game draws
+with a given shader + render-state combination, which causes **stutter** (isolated
+frame-time spikes). The precompiler builds them all **at launch** instead. This board
 collects, across many GPUs / drivers / CPUs, whether that actually **eliminates
 the in-gameplay compile stutter** — measured objectively with PresentMon.
 
+⚠️ **DXVK is required.** GTA IV chooses between six shader directories by probing
+depth formats. Under native Direct3D 9 the vendor's driver answers that probe, so
+different GPUs load *different shader bytecode* and results cannot be compared across
+machines. Under DXVK, DXVK answers it. Please don't post a native-D3D9 result — it
+measures something else. Also note whether `VK_EXT_graphics_pipeline_library` is
+active (in your DXVK log): with it on, most of this stutter is already gone, and "no
+spikes either way" is a valid, useful result rather than a failed run.
+
 ## How to run the test (≈15 minutes)
 
-You need: Windows 10/11, GTA IV, the FusionFix build with the precompiler, and
-either **Claude Code** (easiest — it drives the whole thing) or PowerShell.
+You need: Windows 10/11, GTA IV with the **latest DXVK** installed, the FusionFix
+build with the precompiler, and either **Claude Code** (easiest — it drives the whole
+thing) or PowerShell.
 
 1. Get the harness: `git clone https://github.com/emansom/gtaiv-precompile-test`
    *(the owner will fill in the real URL)*.

@@ -3,10 +3,17 @@
 A small, standalone Windows harness to verify — on **your** hardware — whether the
 **FusionFix launch-time shader precompiler** eliminates in-gameplay
 shader-compilation **stutter** in **Grand Theft Auto IV** (Complete Edition,
-native Direct3D 9), and to measure the before/after objectively.
+**running the latest DXVK**), and to measure the before/after objectively.
+
+> **DXVK is required, not optional.** GTA IV chooses between six shader directories
+> by probing depth formats. Under native Direct3D 9 the vendor's driver answers that
+> probe, so different GPUs load *different shader bytecode* and their results cannot
+> be compared or pooled. Under DXVK, DXVK answers it — which is what makes results
+> from different machines mean the same thing. A native-D3D9 run is a different
+> experiment and should not be collected here.
 
 It captures per-frame present times with **PresentMon**, drives a fixed short
-gameplay segment with the precompiler **OFF** (cold driver shader cache → expect
+gameplay segment with the precompiler **OFF** (cold pipeline cache → expect
 stutter) then **ON** (expect none), detects the isolated compile-stutter spikes,
 and emits a **PASS/FAIL** result you post to a shared board so results aggregate
 across many GPUs/drivers/CPUs.
@@ -17,11 +24,17 @@ across many GPUs/drivers/CPUs.
 
 ## What it proves
 
-On native D3D9 the driver compiles GPU shader ISA the first time it meets each
-shader+render-state during play, and that first hit is a **stutter** (an isolated
+Under DXVK a Vulkan **pipeline** is built the first time the game draws with a given
+shader + render-state combination, and that first hit is a **stutter** (an isolated
 frame-time spike). The precompiler does all that work **at launch**. We prove it
 by comparing the same drive, cold, OFF vs ON: **PASS** = the isolated spikes seen
 OFF drop to ~0 ON and the p99.9 / max frame times collapse toward the median.
+
+**Record whether `VK_EXT_graphics_pipeline_library` is active** (grep the DXVK log
+for `Graphics pipeline libraries`). It decides how much there is to remove: with GPL
+on, DXVK front-loads the work at shader-create time and most of this stutter is
+already gone. An OFF run with no spikes and GPL on is a correct *"nothing to fix in
+this configuration"*, not a broken measurement to retry until it looks bad.
 
 ## Requirements
 
@@ -108,9 +121,9 @@ gtaiv-precompile-test/
   didn't regress, and total stutter time dropped — while the OFF run *did* stutter
   (self-consistency).
 
-Native D3D9 has no per-compile counter, so the **isolated spike count is the
-in-gameplay compile proxy**; the precompiler's own launch log reports how many
-shaders it warmed.
+There is no per-pipeline-compile counter exposed to the game, so the **isolated spike
+count is the in-gameplay compile proxy**; the precompiler's own launch log
+(`plugins\FusionFix.shaders.log`) reports how many pipelines it warmed.
 
 ## Status / provenance
 

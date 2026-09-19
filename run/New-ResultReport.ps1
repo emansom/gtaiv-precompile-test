@@ -71,7 +71,8 @@ if ($vf) {
     }
 }
 
-# In-gameplay compile count on native D3D9 == isolated compile-stutter spikes (proxy).
+# No per-pipeline-compile counter is exposed to the game, so the isolated
+# compile-stutter spike count stands in for "pipelines built during gameplay".
 $offSpikes = [int]$off.isolated_spike_count
 $onSpikes  = [int]$on.isolated_spike_count
 
