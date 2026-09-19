@@ -74,6 +74,29 @@ shader this install does not have. With the shipped baseline on a FusionFix
 ending in `.bin`. The replay warms them, and with `CaptureDrawKeys = 1` they are
 merged into this PC's own capture.
 
+**From the next build (branch `d3d9-dropin`) that changes:**
+- D3D9 cache files go in `<game>\plugins\d3d9cache\`: top level only, any name ending
+  in `.bin`. `plugins\pipelinecache\` is for Vulkan `.foz` files only. A file in the
+  wrong folder, or in a subfolder, is not loaded, and the log says where it belongs.
+- Every launch copies this PC's own capture(s) into `plugins\d3d9cache\` as
+  `FusionFix.<h>.bin`. `<h>` is the FNV-1a of the file's content, so the same content
+  always gets the same name. It replaces its own previous copy and never touches
+  other files. Collecting a PC's caches is copying that folder, and the same file
+  under two names is used once. `tools\cache\cacheinfo.py` prints a file's shared
+  name; `merge_cache.py`, `filter_cache.py` and `upgrade_cache_v2.py` write under it
+  when given a directory.
+- Every file is validated before anything is built from it. `FusionFix.shaders.log`
+  has one `replay: d3d9cache\<name>: ...` line per file: `accepted` (with any invalid
+  keys, declarations or shaders dropped), `rejected - <reason>`, `duplicate`, or
+  `skipped - <reason>` (a newer format, another state set, another shader
+  directory). A v1 file is upgraded in memory. At the end of the pass, one
+  `replay:   <file>: of its N new keys, ...` line per file says what it warmed and
+  what this install could not use.
+- Files in `d3d9cache\` are never merged into the local capture, and the capture no
+  longer records the loading-screen pass's own draws.
+- `tools\cache\d3d9cache_check.cpp` compiles the ASI's reader into a console tool.
+  It reports what the replay would say about any file.
+
 **This build reads and writes cache format v2 only.** It refuses a v1 file and
 moves it aside as `<name>.unmerged` instead of overwriting it. The Windows install
 from the 2026-09-19 session still holds a v1 capture in `plugins\`; on first launch

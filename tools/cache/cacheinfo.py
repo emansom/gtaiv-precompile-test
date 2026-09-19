@@ -17,6 +17,8 @@ that assumption gets CHECKED against real contributions instead of assumed.
 import struct
 import sys
 
+import ffpc
+
 CACHE_MAGIC = 0x43504646     # 'FFPC'
 SEC = {1: "meta", 2: "rsTypes", 3: "decls", 4: "keys", 5: "shaders"}
 META_NAMES = ["shaderDir", "adapter", "driver", "os", "dxvk"]   # dxvk: FusionFix d8bfec0+1 on
@@ -57,6 +59,8 @@ for path in sys.argv[1:]:
         print("%s: %s" % (path.split("/")[-1], e))
         continue
     print("%s" % path.split("/")[-1])
+    with open(path, "rb") as f:
+        print("  shared as  %s" % ffpc.content_name(f.read()))
     print("  container v%d, %d sections" % (i["version"], len(i["sections"])))
     for sid, off, size, count in i["sections"]:
         print("    %-8s offset %-9d %9d bytes  %6d items"

@@ -91,6 +91,14 @@ not treat the A/B as optional busywork; it is the outstanding validation.
    launching. That folder is where caches from a player's other PCs go: the replay
    warms them and capture merges them in. Note which you did.
 
+   **Builds after `141a876` (branch `d3d9-dropin`) change this.** D3D9 cache files
+   from other PCs go in `plugins\d3d9cache\` instead, top level, any `.bin` name;
+   `pipelinecache\` is only for Vulkan `.foz` files, and a `.bin` there is not
+   loaded (the log says where it belongs). The replay reads them where they are; they
+   are never merged into the local capture. Each launch also copies this PC's own
+   capture into `plugins\d3d9cache\` as `FusionFix.<hash>.bin`, so collecting a PC's
+   caches is copying that folder. See `prebuilt\README.md`.
+
    If GTA IV does not already have FusionFix installed, deploy the branch's
    `data\plugins\` and `data\update\` first, then overwrite the `.asi`.
 5. **Install the saves.** Launch GTA IV once and quit (that creates the profile

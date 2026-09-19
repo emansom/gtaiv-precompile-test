@@ -41,3 +41,8 @@ and starts a fresh capture. To keep accumulating onto what Windows already saw i
 copy this file into `<game>\plugins\pipelinecache\` (create the folder) before the
 first launch: the replay warms it and capture merges it into the new file. Either is
 fine for the experiment; say which was done.
+
+With builds after `141a876` (branch `d3d9-dropin`), copy it into
+`<game>\plugins\d3d9cache\` instead. The replay warms it there, but it is no longer
+merged into the local capture. Those builds also read the original v1 file directly
+and upgrade it in memory.

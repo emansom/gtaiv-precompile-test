@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Drop every key that names a given shader from a FusionFix pipeline-cache container.
 
-  filter_cache.py <in.bin> <out.bin> [--drop <hashes.txt> ...] [--strip-fxc <hashes.txt> ...]
+  filter_cache.py <in.bin> <out.bin | out-dir> [--drop <hashes.txt> ...] [--strip-fxc <hashes.txt> ...]
+
+  Given a directory, the result is written there as FusionFix.<content hash>.bin,
+  the name FusionFix itself shares files by (ffpc.write_named).
 
 WHY
   A capture records whatever bytecode the capturing install loads. The Linux install
@@ -67,11 +70,11 @@ c.keys = [r for r in c.keys if not (r[ffpc.I_VS] in drop or r[ffpc.I_PS] in drop
 ffpc.prune(c)
 n_named = len(c.shaders)
 c.shaders = {h: v for h, v in c.shaders.items() if h not in strip}
-size = ffpc.write(a.out, c)
+out, size = ffpc.write_to(a.out, c)
 
 print("keys      %d -> %d  (dropped %d, naming %d of the %d listed shaders)"
       % (n_keys, len(c.keys), len(gone), len(named), len(drop)))
 print("decls     %d -> %d" % (n_decls, len(c.decls)))
 print("shaders   %d -> %d named by keys -> %d carrying bytecode (%d left to the install's .fxc)"
       % (n_shaders, n_named, len(c.shaders), n_named - len(c.shaders)))
-print("wrote %s (v%d, %d bytes)" % (a.out, ffpc.CURRENT, size))
+print("wrote %s (v%d, %d bytes)" % (out, ffpc.CURRENT, size))

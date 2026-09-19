@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Merge FusionFix pipeline caches into one: the core of the golden-cache pipeline.
 
-  merge_cache.py <out.bin> <in.bin> [<in.bin> ...]
+  merge_cache.py <out.bin | out-dir> <in.bin> [<in.bin> ...]
+
+Given a directory (e.g. a PC's plugins\\d3d9cache\\), the result is written there as
+FusionFix.<content hash>.bin, the name FusionFix itself shares files by.
 
 Unions the keys of every input, the same way the capture merges a previous session
 into a new one: declarations are matched by their BYTES (declIndex is file-local),
@@ -57,7 +60,7 @@ for path in inputs:
     print("  %-50s v%d  %6d keys, %6d new" % (path.split("/")[-1], c.version,
                                               len(c.keys), len(merged.keys) - before))
 
-size = ffpc.write(out_path, merged)
+out_path, size = ffpc.write_to(out_path, merged)
 inst = sum(1 for r in merged.keys if ffpc.instanced(r))
 print("wrote %s: %d keys (%d instanced), %d declarations, %d shaders, dir '%s' (%d bytes)"
       % (out_path, len(merged.keys), inst, len(merged.decls), len(merged.shaders),

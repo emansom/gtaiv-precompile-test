@@ -11,8 +11,11 @@ mislabels every field after the change.
 
 Records are returned as lists of field values in KeyRecord order. Writing always
 produces the current version (2); a v1 record is widened with streamFreq = 0,
-which is what "never seen instanced" means.
+which is what "never seen instanced" means (the ASI's reader does the same in
+memory). write_named()/write_to() write under the content name the ASI shares
+files by, FusionFix.<h>.bin -- see "sharing between PCs" below.
 """
+import os
 import struct
 
 MAGIC = 0x43504646            # 'FFPC'
@@ -93,7 +96,8 @@ def read(path):
     return c
 
 
-def write(path, c):
+def encode(c):
+    """The container as bytes, always the current version."""
     fmt = REC[CURRENT]
     sections = [
         (SEC_META, c.meta, 1),
@@ -108,12 +112,59 @@ def write(path, c):
     for sid, blob, count in sections:
         table += struct.pack("<IIII", sid, offset, len(blob), count)
         offset += len(blob)
+    return (struct.pack("<IIII", MAGIC, CURRENT, len(sections), 0) + table
+            + b"".join(blob for _, blob, _ in sections))
+
+
+def write(path, c):
+    data = encode(c)
     with open(path, "wb") as f:
-        f.write(struct.pack("<IIII", MAGIC, CURRENT, len(sections), 0))
-        f.write(table)
-        for _, blob, _ in sections:
-            f.write(blob)
-    return offset
+        f.write(data)
+    return len(data)
+
+
+# ---- sharing between PCs ----------------------------------------------------------
+#
+# FusionFix names the files it shares after their content: FusionFix.<h>.bin in
+# plugins\d3d9cache\, <h> = 16 lowercase hex digits of 64-bit FNV-1a over the whole
+# file. Same content, same name, so copying folders between PCs never needs a rename,
+# and the loaders use one content once, whatever it is called. Mirrors d3d9cache.h.
+#
+# NB this is FNV-1a with the STANDARD offset basis 0xcbf29ce484222325. The shader and
+# key hashes INSIDE a file use the ASI's pipelinekeys::Fnv1a, whose basis is
+# 1469598103934665603 (the standard one with its last digit lost). Do not mix them up.
+
+def content_hash(data):
+    h = 0xcbf29ce484222325
+    for b in data:
+        h = ((h ^ b) * 0x100000001b3) & 0xFFFFFFFFFFFFFFFF
+    return h
+
+
+def content_name(data):
+    return "FusionFix.%016x.bin" % content_hash(data)
+
+
+def write_named(directory, c):
+    """Write `c` into `directory` under its content name, through a temp file and a
+    rename. A file of that name already holds these exact bytes and is left alone.
+    Returns (path, size)."""
+    data = encode(c)
+    path = os.path.join(directory, content_name(data))
+    if not os.path.exists(path):
+        tmp = path + ".tmp"
+        with open(tmp, "wb") as f:
+            f.write(data)
+        os.replace(tmp, path)
+    return path, len(data)
+
+
+def write_to(out, c):
+    """write() to a file path, or write_named() when `out` is an existing directory
+    (e.g. a PC's plugins\\d3d9cache\\). Returns (path, size)."""
+    if os.path.isdir(out):
+        return write_named(out, c)
+    return out, write(out, c)
 
 
 def identity(c, r):
