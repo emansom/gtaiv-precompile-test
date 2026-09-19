@@ -84,12 +84,30 @@ Tools: `fossilize-list`, `fossilize-convert-db` and `fossilize-merge-db` were bu
 `/run/user/1000/zs/fz-build/cli/` for the research. That is tmpfs, so rebuild from
 ValveSoftware/Fossilize after a reboot.
 
-## Legal status
+## Legal status (researched 2026-09-19; research, not legal advice)
 
-Being researched separately (on the Linux machine: `re/shader-precompile/legal-steam-shader-cache.md`).
-**Until it concludes: reading the player's own Steam download locally only; nothing
-of Steam's is redistributed.** The same research covers the shader bytecode our own
-FFPC files already ship.
+Full report on the Linux machine: `re/shader-precompile/legal-steam-shader-cache.md`.
+The Steam Subscriber Agreement quotes below were re-checked against the live text.
+
+| option | risk | why |
+|---|---|---|
+| (a) the mod reads the player's **own** Steam pre-cache, locally | low | personal use of a Subscription. Never write into Steam's folders, and never let Steam-derived entries reach anything that ships |
+| (b) **ship** Steam's crowd database, or anything merged from it | **high: don't** | SSA §2.G: no copying or distributing the "Content and Services" "without the prior consent, in writing, of Valve". That definition covers "any other software, content, and updates you download or access via Steam". §9.C allows account cancellation. The data is also mostly translated Rockstar and third-party mod shaders, which Valve could not clear even if it agreed |
+| (c) ship Fossilize databases **we record ourselves**, Steam's data kept out | low–medium | no Valve issue. The SPIR-V is a translation of FusionFix/Rockstar shaders, the same exposure FusionFix's shipped shader files already have |
+| (d) FFPC as shipped today | low | measured: the baseline's 531 blobs are 505 FusionFix-release `.fxc` shaders (506 with the branch's radar) plus 25 FusionFix builds at runtime; **0** match the untouched game's own `common/shaders` |
+| (e) FFPC with hashes in place of `.fxc` bytecode | very low | hashes and render state are facts |
+
+**What this changes in the plan above.** Steam's crowd database can be a base only
+**per player, locally**: the mod reads that player's own download. It can never be
+a base for a golden database that ships. Shipped golden databases are built only from
+recordings contributors make with the mod itself.
+
+**Recommended follow-up (e), with no functional cost.** Stop storing bytecode for
+shaders that come from the install's `.fxc` files. Where the install has them, the
+replay already resolves them by hash; where it doesn't, the pipeline would never be
+used anyway. Keep bytecode only for FusionFix's runtime-built shaders (the 25). This
+also stops player contributions from carrying other mods' shaders (e.g. Liberty City
+Plates).
 
 ## Measured vs assumed
 
