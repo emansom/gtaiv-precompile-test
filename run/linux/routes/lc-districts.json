@@ -1,0 +1,44 @@
+{
+ "name": "lc-districts-v1",
+ "_about": [
+  "The fixed gameplay route for the Linux stutter A/B (route.py). From Star Junction east through Lancet",
+  "over the Algonquin Bridge to Rotterdam Hill, south through East Hook, back west over the Broker Bridge",
+  "to Fishmarket South and Chinatown, and north to the Cluckin' Bell in The Triangle; then on foot inside",
+  "to the counter, eat, and back out to the street, which is the end. About 3 km driven.",
+  "GTA IV 1.2.0.59 world units. Every leg stays on one side of the water, and a bridge is a leg of its",
+  "own: the AI plans only over path data streamed in around the player, so a target across a river sends",
+  "it to the shore. For the same reason every point is an exact car node, read once from the game",
+  "(GET_CLOSEST_CAR_NODE_WITH_HEADING) standing next to it, never snapped at run time ('road': true): from",
+  "far away the lookup finds a different node. Bridge nodes are in the lanes of the direction driven. The",
+  "leg after a bridge ends at the foot of its ramp (a car parked there once for two minutes).",
+  "'chinatown-north' is a point on the street the car turns into north of the Broker Bridge ramp (from",
+  "its recorded path, not a node lookup): tasked from the ramp straight to the Cluckin' Bell, the car",
+  "stood at that junction until the watchdog moved it, in every run. The Cluckin' Bell door and counter",
+  "were calibrated live. Changing anything here makes results incomparable with earlier runs: bump the",
+  "name."
+ ],
+ "behavior": "fast",
+ "car_colour": 68,
+ "env": {"hour": 13, "minute": 0, "weather": 1},
+ "start": {"x": -203.5, "y": 261.2, "z": 13.9, "heading": 270.0, "clear": 40.0},
+ "start_settle_s": 5,
+ "stall_s": 12,
+ "legs": [
+  {"name": "lancet", "to": {"x": 119.8, "y": 249.6, "z": 21.2}, "arrive": 25, "timeout_s": 90},
+  {"name": "algonquin-bridge", "to": {"x": 538.0, "y": 249.6, "z": 43.5}, "arrive": 30, "timeout_s": 90},
+  {"name": "rotterdam-hill", "to": {"x": 886.0, "y": 247.6, "z": 25.3}, "arrive": 30, "timeout_s": 90},
+  {"name": "east-hook", "to": {"x": 912.0, "y": -198.6, "z": 19.0}, "arrive": 30, "timeout_s": 90},
+  {"name": "broker-bridge", "to": {"x": 900.4, "y": -400.5, "z": 36.5}, "arrive": 30, "timeout_s": 90},
+  {"name": "fishmarket", "to": {"x": 310.1, "y": -400.5, "z": 27.5}, "arrive": 30, "timeout_s": 90},
+  {"name": "chinatown", "to": {"x": 199.1, "y": -400.2, "z": 13.8}, "arrive": 25, "timeout_s": 60},
+  {"name": "chinatown-north", "to": {"x": 141.0, "y": -209.0, "z": 14.0}, "arrive": 25, "timeout_s": 60},
+  {"name": "cluckin-bell", "to": {"x": -143.6, "y": 59.54, "z": 13.66}, "arrive": 18, "near": 40, "timeout_s": 120}
+ ],
+ "on_foot": [
+  {"name": "counter", "to": {"x": -123.26, "y": 70.29, "z": 14.81}, "radius": 1.5, "timeout_s": 60},
+  {"name": "eat", "eat": true, "dwell_s": 6},
+  {"name": "street", "to": {"x": -143.6, "y": 59.54, "z": 13.66}, "radius": 2.0, "timeout_s": 60}
+ ],
+ "end": {"x": -143.6, "y": 59.54, "z": 13.66},
+ "timeout_s": 600
+}

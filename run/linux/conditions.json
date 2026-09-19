@@ -1,0 +1,79 @@
+{
+ "_about": [
+  "Named test conditions for gameplay_run.py. Each asserts [SHADERS] keys before launch ('_common' plus",
+  "its own 'expect'; --expect KEY=VALUE adds or overrides one). The runner never edits the ini: set the keys",
+  "with an editor first. A key the ini lacks counts as the build's default from '_defaults' -- update that",
+  "block when a new build adds or changes a key (source: ReadConfig in shaderprecompile.ixx, vkcapture.ixx,",
+  "shadercapture.ixx). 'dropins' are .bin/.foz files (repo-relative) staged flat into plugins\\d3d9cache\\ or",
+  "plugins\\pipelinecache\\ as FusionFix.<fnv1a64>.<ext>. 'cold' (default true) empties the Mesa cache first;",
+  "--warm / --cold override it. Every measurement condition has capture off (CaptureDrawKeys and",
+  "CaptureVulkanPipelines = 0): the snapshot recordings are what gets warmed, and D3D9 capture costs frame",
+  "rate. NB on 141a876 the gameplay compile counter only exists while vkcapture runs (Capture- or",
+  "ReplayVulkanPipelines = 1), and needs a loading-screen pass to end its 'before gameplay' window."
+ ],
+ "_defaults": {
+  "PrecompileShaders": 1, "PrecompileCoverage": 2, "PrecompileOverlay": 1, "PrecompileCoverSdr": 0,
+  "PrecompileCoverPresentModes": 1, "PrecompileFlashProbe": 0, "PrecompileReplayCapturedKeys": 1,
+  "PrecompileAdaptiveExit": 0, "PrecompileBudgetSeconds": 0, "PrecompileFenceChunk": 1,
+  "PrecompileSpecVariants": 1, "PrecompileExportBaseline": 0,
+  "CaptureDrawKeys": 0, "CaptureFlushSeconds": 10,
+  "CaptureVulkanPipelines": 1, "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesTrace": 0,
+  "ReplayVulkanPipelinesForeign": 1
+ },
+ "_common": {
+  "PrecompileFlashProbe": 0, "PrecompileExportBaseline": 0, "PrecompileAdaptiveExit": 0,
+  "PrecompileBudgetSeconds": 0, "ReplayVulkanPipelinesTrace": 0
+ },
+ "_snapshot_files": [
+  "FusionFix.vkpipelines.foz", "FusionFix.pipelinecache.f21-ms0.bin", "FusionFix.pipelinecache.baseline.bin"
+ ],
+ "_state_files_about": [
+  "plugins\\ files the runner removes before and after a run (globs, never a snapshot recording): FusionFix's",
+  "record of the snapshot it last copied into each drop-in folder, and the D3D9 side's temp file, left behind",
+  "only by a crash mid-write. Names from the builds being merged: d3d9cache.h StatePath and WriteFileAtomic",
+  "(/tmp/ff-a 1984938), vkcapture.ixx ShareOwnRecording (/tmp/ff-b ea87665; its temp file is",
+  "pipelinecache\\FusionFix.<h>.foz.tmp, which the drop-in cleanup already takes). The runner lists every",
+  "file it removes in meta.json."
+ ],
+ "_state_files": ["FusionFix.d3d9cache.state", "FusionFix.pipelinecache.state", "FusionFix.d3d9cache.tmp"],
+ "conditions": {
+  "off": {
+   "about": "Nothing warmed: no loading-screen pass, no Vulkan replay, no capture.",
+   "expect": {"PrecompileShaders": 0, "CaptureDrawKeys": 0, "CaptureVulkanPipelines": 0,
+              "ReplayVulkanPipelines": 0, "ReplayVulkanPipelinesForeign": 0}
+  },
+  "d3d9": {
+   "about": "The D3D9 pass only (snapshot capture + shipped baseline).",
+   "expect": {"PrecompileShaders": 1, "PrecompileReplayCapturedKeys": 1, "CaptureDrawKeys": 0,
+              "CaptureVulkanPipelines": 0, "ReplayVulkanPipelines": 0, "ReplayVulkanPipelinesForeign": 0}
+  },
+  "d3d9+vk-own": {
+   "about": "The D3D9 pass, then this PC's own Fossilize recording; nothing foreign.",
+   "expect": {"PrecompileShaders": 1, "PrecompileReplayCapturedKeys": 1, "CaptureDrawKeys": 0,
+              "CaptureVulkanPipelines": 0, "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesForeign": 0}
+  },
+  "full": {
+   "about": "Everything the defaults warm: D3D9 pass, own recording, foreign databases (the player's Steam pre-cache buckets).",
+   "expect": {"PrecompileShaders": 1, "PrecompileReplayCapturedKeys": 1, "CaptureDrawKeys": 0,
+              "CaptureVulkanPipelines": 0, "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesForeign": 1}
+  },
+  "full+win-d3d9": {
+   "about": "'full' plus the Windows PC's D3D9 capture dropped in the way a player would.",
+   "expect": {"PrecompileShaders": 1, "PrecompileReplayCapturedKeys": 1, "CaptureDrawKeys": 0,
+              "CaptureVulkanPipelines": 0, "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesForeign": 1},
+   "dropins": ["cache/windows-amd-dxvk/FusionFix.pipelinecache.f21-ms0.bin"]
+  },
+  "warm": {
+   "about": "'full' on a warm Mesa cache: the best case.",
+   "cold": false,
+   "expect": {"PrecompileShaders": 1, "PrecompileReplayCapturedKeys": 1, "CaptureDrawKeys": 0,
+              "CaptureVulkanPipelines": 0, "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesForeign": 1}
+  },
+  "ini-here": {
+   "about": "The ini exactly as deployed on this machine (/tmp/ff-tools/ini.pristine, D3D9 capture on). For validating the rig, not for measuring.",
+   "cold": false,
+   "expect": {"PrecompileShaders": 1, "PrecompileReplayCapturedKeys": 1, "CaptureDrawKeys": 1,
+              "CaptureVulkanPipelines": 1, "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesForeign": 1}
+  }
+ }
+}

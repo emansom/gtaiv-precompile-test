@@ -168,7 +168,14 @@ gtaiv-precompile-test/
 │  ├─ Verify-Precompiler.ps1     # confirm the precompiler ran (reads FusionFix.shaders.log)
 │  ├─ Get-HardwareInfo.ps1       # GPU+driver / CPU / OS -> JSON
 │  ├─ New-ResultReport.ps1       # build results\result.md (+ result.json)
-│  └─ Common.ps1                 # shared helpers
+│  ├─ Common.ps1                 # shared helpers
+│  └─ linux/                     # the Linux gameplay rig: one condition, one launch, a fixed driven route
+│     ├─ gameplay_run.py            # preflight, stage drop-ins, launch, route, quit, clean up
+│     ├─ route.py                   # the route driver (Frida, on fusionfix-hdr's goal runner)
+│     ├─ routes/lc-districts.json   # Star Junction, both bridges, Broker, the Cluckin' Bell on foot
+│     ├─ conditions.json            # the [SHADERS] keys each condition asserts, drop-ins, cold/warm
+│     ├─ gpparse.py                 # result folders -> markdown tables
+│     └─ README.md                  # how to run it, and what it measures
 ├─ tools/
 │  ├─ cache/                  # read and compare .pipelinecache containers (needs Python)
 │  │  ├─ ffpc.py                 # shared reader/writer (v1+v2) and the mirror of the replay's key
