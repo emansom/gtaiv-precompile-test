@@ -1,5 +1,12 @@
 # Windows stutter A/B: the precompiler works here, and the harness had a false-negative bug
 
+> **SUPERSEDED IN PART — read `## CORRECTION` at the bottom first.** The numbers in the
+> body of this note were measured against a baseline that was NOT cold: Steam redirects
+> AMD's Vulkan pipeline cache to `steamapps\shadercache\<appid>\AMDv1` and 94.8 MB of it
+> stayed warm through every run. The corrected, truly-cold result is **stutter 18,450 ms
+> -> 5,010 ms (-73%)**, not the -84% quoted below. The qualitative conclusions all hold;
+> the magnitudes were understated by roughly 20x.
+
 Run 2 (the PresentMon A/B) on the Windows side, 2026-09-19. This is the measurement
 `HANDOFF.md` calls the outstanding validation. It had never been run on Windows.
 
@@ -141,3 +148,96 @@ tester's locale writes decimal commas, and `result.md` gets pasted into a public
   to `saves/profile/` before and after every run; cloud sync never touched them. Worth adding
   to `saves/README.md`: installing the files is not enough, the matching episode must be
   launched.
+
+---
+
+# CORRECTION (same day, after re-measuring)
+
+Everything above was measured with a warm 94.8 MB shader cache that neither side knew
+about. This section replaces the headline numbers. **The conclusions do not change
+direction — every one of them gets stronger.**
+
+## The miss: Steam moves AMD's Vulkan pipeline cache
+
+Read from GTA IV's live process environment block:
+
+```
+AMD_VK_PIPELINE_CACHE_PATH     = <steam>\steamapps\shadercache\12210\AMDv1
+AMD_VK_PIPELINE_CACHE_FILENAME = steamapp_shader_cache
+AMD_VK_USE_PIPELINE_CACHE      = 1        <- Steam switches the driver cache ON
+```
+
+xgl's `pipeline_binary_cache.cpp` joins those and appends `.parc`. On disk:
+**`steamapp_shader_cache.parc` = 64 MiB**, plus `fozpipelinesv6\steamapp_pipeline_cache.foz`
+= 30.8 MB. Neither was ever cleared. Fixed in `run\Clear-ShaderCache.ps1`, scoped to
+appids 12210/12220 only (other titles on that box held 637 MB that must not be touched).
+
+**This also supersedes the earlier explanation of the empty `AMD\VkCache`.** It is not
+that the driver defers to the app-supplied `VkPipelineCache` — it is that the env var
+overrides the default location. Confirmed empirically: once Steam's redirect target was
+emptied and Steam Shader Pre-Caching disabled, `AMD\VkCache` started receiving files.
+
+## Corrected A/B, both arms n=2, all four stores verified at 0 files before launch
+
+| run | frames | mean fps | median | p99 | p99.9 | max | ISO | stutter |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| OFF #1 | 5497 | 61.1 | 13.31 | 114.36 | 430.65 | 2020 ms | 68 | 18,407 ms |
+| OFF #2 | 5490 | 61.0 | 13.32 | 112.14 | 522.26 | 2452 ms | 56 | 18,494 ms |
+| ON #1 | 6409 | 71.3 | 13.32 | 15.07 | 172.28 | 1903 ms | 19 | 4,803 ms |
+| ON #2 | 6381 | 70.9 | 13.32 | 14.99 | 182.60 | 1975 ms | 12 | 5,218 ms |
+
+Means: **lost frame time 18,450 -> 5,010 ms (-73%)**, isolated spikes **62 -> 15.5 (-75%)**,
+**p99 ~113 ms -> ~15 ms** against a 13.32 ms median shared by all four runs, mean framerate
+**61 -> 71 fps**. Within-arm agreement is 0.5% (OFF) and 8% (ON).
+
+**Measured cost:** cold precompile pass = **55.0 s and 54.3 s** (`drew 2099 of 2099
+pipelines in 49s/48s`, 0 no-shader). ~55 s of one-time loading against ~13.4 s of stutter
+per 90 s of driving.
+
+How badly the warm cache misled us, same OFF configuration:
+
+| OFF baseline | ISO spikes | lost time | p99 |
+|---|---:|---:|---:|
+| Steam `.parc` warm | 18 / 26 | 343 / 879 ms | 16.07 ms |
+| truly cold | 56 / 68 | 18,407 / 18,494 ms | 112-114 ms |
+
+## New finding: the synthetic coverage path is a regression
+
+With both `.bin` caches removed the precompiler falls back to synthetic coverage
+(`replay: loaded 0 keys, 0 declarations`). Measured against the warm-Steam baseline, so
+compare these three to each other only:
+
+| config | loadscreen | p99.9 | max | ISO | stutter |
+|---|---:|---:|---:|---:|---:|
+| OFF, no precompile | n/a | 26.36 | 72.45 | 18 | 343 ms |
+| ON, cache replay | 7.2 s | 16.81 | 75.85 | 3 | 81 ms |
+| ON, synthetic, no cache | **363 s** | 34.84 | 135.14 | **35** | 689 ms |
+
+**363 seconds of loading screen for worse smoothness than doing nothing.** Frame gaps up
+to 52 s during the pass. A player with no contributed cache is better off with
+`PrecompileShaders = 0`. This is the strongest argument yet for the golden-cache plan:
+the cache is not an optimisation of the precompiler, it *is* the precompiler.
+
+## Residual stutter is streaming, not compilation
+
+Both arms retain a ~2 s stall (OFF 2452 ms, ON 1975 ms) and `max` barely improves. A stall
+that survives full pre-warming is not shader compilation. Earlier hypothesis (the
+precompiler's own async work draining into early gameplay) was tested with a 60 s
+stationary settle and **rejected** — the spikes moved later into the route rather than
+vanishing. The harness's strict `isolated spikes <= 0` gate cannot pass while these exist,
+which is why the verdict stays FAIL despite a 73% reduction.
+
+## Another measurement-integrity miss, for the record
+
+The DXVK HUD was re-enabled in `dxvk.conf` partway through the session and **two runs were
+captured with it active** while the write-up claimed "no overlays". Caught by grepping each
+archived `GTAIV_d3d9.log` for `dxvk.hud`. Corrected publicly. Lesson worth keeping: the
+per-run environment must be re-verified before *every* capture, not once at the start.
+`Created cache file` vs `Found cache file` in the DXVK log is the cheapest cold-start gate
+and should be asserted automatically.
+
+## Steam Shader Pre-Caching
+
+Disabled partway through as a control. It made **no material difference** once the caches
+were genuinely cleared: OFF #1 (setting on) and OFF #2 (setting off) agree to 0.5% on lost
+frame time. Worth knowing so future testers need not chase it.
