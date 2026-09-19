@@ -37,9 +37,16 @@ one unless told otherwise.
    test coverage**. If the answer looks wrong, set `GamePath` by hand.
 3. **Install the latest DXVK** — 32-bit `d3d9.dll` beside `GTAIV.exe`. Confirm a
    `GTAIV_d3d9.log` appears on launch. No log = native D3D9 = do not collect.
-4. **Deploy** into `<game>\plugins\`: the `.asi` built from that branch, and
-   `cache\linux-amd-dxvk\FusionFix.pipelinecache.baseline.bin`. Deploy the baseline
-   **only** — see that folder's README for why not the full capture.
+4. **Deploy** into `<game>\plugins\`:
+   - `prebuilt\GTAIV.EFLC.FusionFix.asi` — already built from that branch, so no
+     toolchain needed. **Check it is not stale first** (`prebuilt\README.md` has the
+     commit and hash); a stale ASI still appears to work and would silently measure
+     the wrong build.
+   - `cache\linux-amd-dxvk\FusionFix.pipelinecache.baseline.bin` — the baseline
+     **only**, see that folder's README for why not the full capture.
+
+   If GTA IV does not already have FusionFix installed, deploy the branch's
+   `data\plugins\` and `data\update\` first, then overwrite the `.asi`.
 5. **Install the saves.** Launch GTA IV once and quit (that creates the profile
    folder), then:
    ```powershell
