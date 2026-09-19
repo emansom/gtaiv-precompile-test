@@ -13,11 +13,11 @@ the vendored DirectX SDK) just to run one experiment.
 ```
 repo    emansom/GTAIV.EFLC.FusionFix
 branch  shader-precompile-cache
-commit  141a876  "shaders: Vulkan replay on by default, loading screen waits for it"
+commit  d3c5dc1  "shaders: what the review of the merged sharing work found"
 built   MSVC 14.51 (x86, /MT) via msvc-wine, the same toolchain and Platform=Win32
         target the project's CI uses
-sha256  55d85398ee0f1629dba27a3d11f7853ed6ba275e2ba754fd4a5974d0c25e132b
-size    6,413,312 bytes
+sha256  7b12f24257afba495b08adcf17c8c29b0dcc7b8c87f032cbf543c94fc6eedd22
+size    6,550,528 bytes
 ```
 
 **Vulkan-level record and replay, ON by default from `141a876`.** Missing keys count
@@ -74,7 +74,7 @@ shader this install does not have. With the shipped baseline on a FusionFix
 ending in `.bin`. The replay warms them, and with `CaptureDrawKeys = 1` they are
 merged into this PC's own capture.
 
-**From the next build (branch `d3d9-dropin`) that changes:**
+**In this build that is how it works:**
 - D3D9 cache files go in `<game>\plugins\d3d9cache\`: top level only, any name ending
   in `.bin`. `plugins\pipelinecache\` is for Vulkan `.foz` files only. A file in the
   wrong folder, or in a subfolder, is not loaded, and the log says where it belongs.
@@ -110,7 +110,7 @@ Get-FileHash .\prebuilt\GTAIV.EFLC.FusionFix.asi -Algorithm SHA256
 git -C <fusionfix-clone> log --oneline -1 origin/shader-precompile-cache
 ```
 
-If that branch has moved past `141a876`, this binary is **stale**. Build from source
+If that branch has moved past `d3c5dc1`, this binary is **stale**. Build from source
 or ask for a fresh one. A stale ASI is the worst failure mode here because everything
 still appears to work; it would just be measuring the wrong build.
 
