@@ -37,7 +37,10 @@
 param(
     [ValidateSet('Auto','NVIDIA','AMD','Intel','All')]
     [string]$Vendor = 'Auto',
-    [string]$GamePath
+    [string]$GamePath,
+    # Steam appids whose shadercache\<appid>\ to clear when -GamePath is a Steam
+    # install. 12210 = GTA IV / Complete Edition, 12220 = EFLC.
+    [int[]]$SteamAppIds = @(12210, 12220)
 )
 
 Set-StrictMode -Version Latest
@@ -66,7 +69,15 @@ $CacheMap = @{
         # comes up warm, so clear them too. Note AMD\VkCache was EMPTY on that
         # machine even mid-Vulkan-session, so it is not where this driver caches.
         (Join-Path $LA 'AMD\DX9Cache'),
-        (Join-Path $LA 'AMD\OglCache')
+        (Join-Path $LA 'AMD\OglCache'),
+        # Insurance, both absent on the machine this was measured on. The Vulkan ICD
+        # (amdvlk64.dll) carries the literal string '\AMD\ScpcCache\', and LLPC's
+        # llpcShaderCache.cpp uses '\AMD\LlpcCache\'. Neither is where this driver
+        # ended up caching -- under DXVK the app supplies its own VkPipelineCache and
+        # the ICD does not back it on disk, which is why AMD\VkCache stays empty --
+        # but they cost nothing to clear and would matter on a native-Vulkan title.
+        (Join-Path $LA 'AMD\ScpcCache'),
+        (Join-Path $LA 'AMD\LlpcCache')
     )
     Intel = @(
         (Join-Path $LA 'Intel\ShaderCache'),
@@ -143,6 +154,42 @@ if (Test-Path -LiteralPath $dxvkAppCache) {
     if ($r.state -eq 'cleared') { Write-Host "  $msg" -ForegroundColor Green } else { Write-Host "  $msg" -ForegroundColor DarkGray }
 } else {
     Write-Host "  absent   $dxvkAppCache" -ForegroundColor DarkGray
+}
+
+# STEAM REDIRECTS THE AMD VULKAN PIPELINE CACHE OUT OF %LOCALAPPDATA%.
+# Read live from GTA IV's process environment block:
+#   AMD_VK_PIPELINE_CACHE_PATH     = <steam>\steamapps\shadercache\<appid>\AMDv1
+#   AMD_VK_PIPELINE_CACHE_FILENAME = steamapp_shader_cache
+#   AMD_VK_USE_PIPELINE_CACHE      = 1      <- Steam switches the driver cache ON
+# xgl's pipeline_binary_cache.cpp joins those and appends '.parc'. Measured on this
+# machine: steamapp_shader_cache.parc = 64 MiB, warm across every run, never cleared.
+# THAT is why %LOCALAPPDATA%\AMD\VkCache is empty -- the env var overrides the default
+# location; it is not that the driver declines to cache.
+# Also clear Steam's Fossilize archive: with EnableShaderBackgroundProcessing = 1
+# Steam can replay it to rebuild the .parc in the background, re-warming the cache
+# behind your back between runs.
+if ($GamePath) {
+    $sa = $GamePath
+    while ($sa -and (Split-Path -Leaf $sa) -ne 'steamapps') { $sa = Split-Path -Parent $sa }
+    if ($sa) {
+        # ONLY this game's appids (12210 = GTA IV / Complete, 12220 = EFLC). Steam
+        # keeps every title's cache side by side under shadercache\<appid>\ and some
+        # are hundreds of MB -- clearing them all would trash unrelated games for no
+        # benefit to this measurement.
+        foreach ($sub in @('AMDv1','fozpipelinesv6','DXVK_state_cache','nvidiav1')) {
+            foreach ($appid in $SteamAppIds) {
+                $p = Join-Path (Join-Path $sa "shadercache\$appid") $sub
+                if (Test-Path -LiteralPath $p) {
+                    $r = Clear-Folder -Path $p
+                    $results += $r
+                    $msg = "{0,-8} {1}  (removed {2}, skipped {3})" -f $r.state, $r.path, $r.removed, $r.skipped
+                    if ($r.state -eq 'cleared') { Write-Host "  $msg" -ForegroundColor Green } else { Write-Host "  $msg" -ForegroundColor DarkGray }
+                }
+            }
+        }
+    } else {
+        Write-Host "  skipped  no steamapps\ above $GamePath (non-Steam install?)" -ForegroundColor DarkGray
+    }
 }
 
 # DXVK's old 1.x state cache lived beside the executable. DXVK 2.x dropped it in
