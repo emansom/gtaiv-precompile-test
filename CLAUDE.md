@@ -1,5 +1,12 @@
 # CLAUDE.md — run the GTA IV shader-precompile test (Windows)
 
+> **If you are the repo owner's own Windows session, read [`HANDOFF.md`](HANDOFF.md)
+> FIRST.** This file describes the *crowd-test* flow for an anonymous third-party
+> tester on **native Direct3D 9**. The owner's current work runs **DXVK on Windows
+> too**, is chasing a different question (does the game resolve the same shader
+> directory across vendors under DXVK?), and uses a newer branch. Following this file
+> instead of HANDOFF.md will measure the wrong thing.
+
 You are Claude Code running on the tester's **Windows** machine. Your job: run
 this harness end-to-end to measure whether the FusionFix **shader precompiler**
 eliminates in-gameplay shader-compile **stutter** in **Grand Theft Auto IV**
@@ -43,7 +50,8 @@ Get-Command gh -ErrorAction SilentlyContinue   # optional: lets you post automat
   Administrator** (right-click → Run as administrator). PresentMon captures via
   ETW and needs it.
 - **GTA IV** must be installed with the **FusionFix build that includes the
-  precompiler** (from `emansom/GTAIV.EFLC.FusionFix` branch `shader-precompile`).
+  precompiler** (from `emansom/GTAIV.EFLC.FusionFix` branch
+  `shader-precompile-cache` — `shader-precompile` is an older diverged line).
   If the tester only has the source, they must build the `.asi` first (out of
   scope here) or supply a prebuilt one; note its path.
 - All harness paths below are relative to the repo root (this folder).
