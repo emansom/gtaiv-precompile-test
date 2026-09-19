@@ -20,6 +20,32 @@ anything else we have and should not be collected.
 
 ---
 
+## Run 0: X0, the driver unit test (no game)
+
+Run this before Run 1. It takes about a minute and needs no game, no DXVK, no
+elevation and no toolchain. It is separate from the two game runs below.
+
+It answers one question by itself: **does AMD's Windows Vulkan driver refuse to
+fast-link a pixel shader that declares `PointCoord`?** DXVK's shader compiler declares
+it in every GTA IV pixel shader. If the answer is yes, every new pipeline on this driver
+is a full compile. The Linux side calls this hypothesis H0.
+
+```powershell
+.\run\Invoke-X0.ps1
+```
+
+It runs the prebuilt `tools\x0-llpc-pointcoord\x0.exe` three times, each with a fresh
+AMD pipeline-cache folder, and writes `results\raw\x0.json`.
+
+- **Check the printed sha256** against `tools\x0-llpc-pointcoord\README.md` first. A
+  stale `x0.exe` still runs; it just tests the wrong thing.
+- **Close GTA IV first.** It does not break X0, but it competes for CPU.
+- **Report two lines to the tester:** the last one (`X0 VERDICT: ...`) and the
+  `driverInfo` line. That README explains the verdicts. Do not analyse further; the
+  Linux side reads the JSON off the mount.
+
+---
+
 ## Run 1 of 2: the shader-cache run
 
 There are **two** runs in this file and both are wanted. This one is short and comes
@@ -56,6 +82,13 @@ not treat the A/B as optional busywork; it is the outstanding validation.
      the wrong build.
    - `cache\linux-amd-dxvk\FusionFix.pipelinecache.baseline.bin` — the baseline
      **only**, see that folder's README for why not the full capture.
+
+   The current ASI uses **cache format v2**. On first launch it moves any older
+   capture in `plugins\` aside as `FusionFix.pipelinecache.f21-ms0.bin.unmerged` and
+   starts a new one; the log says so. That is expected, not an error. To continue
+   the first Windows session's capture instead, copy
+   `cache\windows-amd-dxvk\FusionFix.pipelinecache.f21-ms0.bin` into `plugins\`
+   before launching, and note which you did.
 
    If GTA IV does not already have FusionFix installed, deploy the branch's
    `data\plugins\` and `data\update\` first, then overwrite the `.asi`.

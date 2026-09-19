@@ -16,10 +16,23 @@ requirement of the design, not a preference of this machine: see the next sectio
 >    ~15 ms. A ~2 s stall remains in *both* arms and only disappears when the
 >    driver's own Vulkan cache is warm. That stall is still being investigated.
 >
-> The prebuilt ASI has since been rebuilt (`d1c6119`). The old one reported
-> `backend = native` on Windows while running on DXVK, and recorded a placeholder
-> driver version. The shipped baseline also lost 47 keys that only named shaders from
-> non-stock `.fxc` files on the Linux install.
+> **Since then (same day, Linux side):**
+> - **Prebuilt ASI `0468057`.** The replay is keyed on DXVK's base pipeline:
+>   shaders, vertex input *including instancing*, output/blend state. The old key
+>   folded blend state away and never saw instancing, which GTA IV does use: one
+>   instanced key was drawn 5,766 times in a short drive. This build also detects
+>   DXVK correctly on Windows (the old one logged `backend = native`) and records the
+>   real Vulkan driver.
+> - **Cache format v2.** The new ASI reads v2 only. The v1 capture already on the
+>   Windows install is moved aside as `.unmerged`, not overwritten. An upgraded copy
+>   is in `cache\windows-amd-dxvk\` if that coverage should carry on.
+> - **Baseline 2350 keys.** It was rebuilt from the Linux and Windows captures and
+>   filtered of the Liberty City Plates shaders. That mod exists only on the Linux
+>   install, which is the more heavily modded of the two.
+> - **Run X0 first** (step 0 below): a one-minute driver test for the ~2 s stall's
+>   suspected cause.
+> - **Plan for the Vulkan-level (Fossilize) layer:**
+>   `state/2026-09-19-linux-golden-fossilize-plan.md`.
 
 ## What this session is for
 
@@ -69,11 +82,14 @@ hence this handoff.
 Linux measured (not assumed): resolves to **`win32_30`**. Proof: of the 1734 shaders
 in `update/common/shaders/win32_30`, 498 hashes match captured keys; every other
 directory matches **0**. (1734 is this Linux install: FusionFix's stock 1706 plus 28
-from four extra vehicle `.fxc` files it happens to carry. A stock install has 1706;
-Windows logged exactly that.)
+from four vehicle `.fxc` files that the Liberty City Plates mod adds. A stock install
+has 1706; Windows, which runs only FusionFix and Various Fixes, logged exactly that.)
 
 ## The whole Windows session, in order
 
+0. **Run X0 first**: `.\run\Invoke-X0.ps1` (`CLAUDE.md` Run 0). It takes about a minute
+   and needs no game. It tests whether AMD's driver can fast-link a pixel shader that
+   declares `PointCoord`. Report its `X0 VERDICT` line.
 1. **Find the game** — confirm before anything deploys to it:
    `.\run\Find-GtaivInstall.ps1 -Json .\results\raw\installs.json`
    Its VDF parsing is verified against real Steam data; its **registry reads are not
@@ -134,15 +150,19 @@ it stays local until they say otherwise.
 
 ## The cache format (one file per player)
 
-`FusionFix.pipelinecache.f<fmt>-ms<msaa>.bin`, magic `FFPC`, sectioned:
+`FusionFix.pipelinecache.f<fmt>-ms<msaa>.bin`, magic `FFPC`, **version 2**, sectioned:
 
 | section | id | contents |
 |---|---|---|
 | meta | 1 | `CacheMeta` (44 bytes, packed) + 4 length-prefixed strings |
 | rsTypes | 2 | which render states the records carry |
 | decls | 3 | vertex declarations |
-| keys | 4 | `KeyRecord` table |
+| keys | 4 | `KeyRecord` table (v2: 336 bytes each, with per-stream instancing) |
 | shaders | 5 | the bytecode those keys name |
+
+`tools/cache/ffpc.py` is the Python reader/writer for both versions. A file the ASI
+cannot merge (other version, state set or shader directory) is kept as
+`<name>.unmerged`, never overwritten.
 
 Strings, in order: **shaderDir**, adapter, driver, os. `shaderDir` is the bucketing
 key. Sectioned so a merge tool can seek to the metadata of a thousand contributions

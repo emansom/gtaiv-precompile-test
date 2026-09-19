@@ -138,20 +138,26 @@ gtaiv-precompile-test/
 │  ├─ GTAIV.EFLC.FusionFix.asi   # built from shader-precompile-cache; check it isn't stale
 │  ├─ GTAIV.EFLC.FusionFix.ini   # settings TEMPLATE, don't blindly overwrite an existing one
 │  └─ README.md                  # commit, toolchain, hash, how to verify + install
-├─ cache/linux-amd-dxvk/      # reference caches from the development machine
-│  ├─ FusionFix.pipelinecache.baseline.bin  # DEPLOY THIS (1954 pipelines, 513 shaders)
-│  ├─ FusionFix.pipelinecache.f21-ms0.bin   # the full capture it came from (reference only)
-│  └─ README.md                             # why the baseline, and why it is filtered
+├─ cache/                     # all cache format v2 (instancing recorded per key)
+│  ├─ linux-amd-dxvk/         # reference caches from the development machine (the MORE modded install)
+│  │  ├─ FusionFix.pipelinecache.baseline.bin  # DEPLOY THIS (2350 pipelines, 531 shaders)
+│  │  ├─ FusionFix.pipelinecache.f21-ms0.bin   # the full capture (reference only)
+│  │  └─ README.md                             # how the baseline was built and filtered; how the installs differ
+│  └─ windows-amd-dxvk/       # the first Windows session's capture, upgraded to v2
+│     ├─ FusionFix.pipelinecache.f21-ms0.bin
+│     └─ README.md
 ├─ saves/                     # same starting point => key sets are comparable
 │  ├─ profile/SGTA400..414       # save games from the Linux prefix
 │  └─ README.md                  # per-user profile folder; saves only appear in their own episode
 ├─ state/                     # notes shared between the Linux and Windows sessions
 │  ├─ 2026-09-19-windows-shaderdir.md   # Run 1 on Windows: resolves win32_30, same as Linux
 │  ├─ 2026-09-19-windows-stutter-ab.md  # Run 2 on Windows: -73% stutter; read its CORRECTION
+│  ├─ 2026-09-19-linux-golden-fossilize-plan.md  # agreed plan: Fossilize layer, buckets, Steam's crowd DB
 │  └─ README.md
 ├─ config/
 │  └─ test.config.example.psd1   # copy to test.config.psd1 and edit
 ├─ run/                       # PowerShell; the A/B happy path needs nothing installed
+│  ├─ Invoke-X0.ps1              # Run 0: X0, the driver unit test (no game) -> results\raw\x0.json
 │  ├─ Invoke-PrecompileTest.ps1  # orchestrator (phases: hardware/off/on/analyze/report/all)
 │  ├─ Find-GtaivInstall.ps1      # locate the game via Steam libraries / Rockstar / uninstall keys
 │  ├─ Install-Saves.ps1          # copy saves/profile into the per-user GTA IV profile
@@ -165,16 +171,22 @@ gtaiv-precompile-test/
 │  └─ Common.ps1                 # shared helpers
 ├─ tools/
 │  ├─ cache/                  # read and compare .pipelinecache containers (needs Python)
+│  │  ├─ ffpc.py                 # shared reader/writer (v1+v2) and the mirror of the replay's key
 │  │  ├─ cacheinfo.py            # index one by seeking to its metadata section
-│  │  ├─ basecov.py              # how much of a capture a baseline covers
-│  │  ├─ convert_cache.py        # one-off shim from the old 3-file format
+│  │  ├─ basecov.py              # how much of real play a baseline covers, per replay tier
+│  │  ├─ merge_cache.py          # union several captures (the core of the golden cache)
 │  │  ├─ filter_cache.py         # drop keys naming given shaders (how the baseline was cleaned)
+│  │  ├─ upgrade_cache_v2.py     # one-off shim: v1 -> v2
+│  │  ├─ convert_cache.py        # one-off shim from the old 3-file format
 │  │  ├─ fxcgap.py               # which of the install's .fxc shaders (1706 stock) a capture reached
 │  │  ├─ fxc_hashes.c            # dump shader hashes from the game's .fxc database
 │  │  ├─ fxc_passes.c            # dump technique/pass + render state from .fxc
 │  │  └─ vdfcheck.py             # validates Find-GtaivInstall's Steam VDF parsing
-│  └─ presentmon/
-│     └─ Get-PresentMon.ps1   # download the pinned PresentMon CLI
+│  ├─ presentmon/
+│  │  └─ Get-PresentMon.ps1   # download the pinned PresentMon CLI
+│  └─ x0-llpc-pointcoord/     # X0: does AMD's driver fast-link a PointCoord pixel shader?
+│     ├─ x0.exe                  # prebuilt, 32-bit; provenance + how to read it in README.md
+│     └─ x0.c, shaders/, build.sh  # the source; build.sh rebuilds x0.exe on Linux
 ├─ python/                    # OPTIONAL richer frame-time analysis
 │  └─ analyze_frametimes.py      # same algorithm; PresentMon/MangoHud/generic CSV; JSON
 ├─ results/
