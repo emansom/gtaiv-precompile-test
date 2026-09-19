@@ -13,12 +13,22 @@ the vendored DirectX SDK) just to run one experiment.
 ```
 repo    emansom/GTAIV.EFLC.FusionFix
 branch  shader-precompile-cache
-commit  567b3cb  "shaders: carry bytecode only for shaders no .fxc supplies; import caches"
+commit  d8bfec0  "shaders: log the install's .fxc hash set"
 built   MSVC 14.51 (x86, /MT) via msvc-wine, the same toolchain and Platform=Win32
         target the project's CI uses
-sha256  1a257e66e2c0798daa36d3cb1151cf7de1613f7e7ab465d17ebfd5deb43772f0
-size    5,957,120 bytes
+sha256  5709cd450272047c0fcb1ce80c3c38bb067b79fa9a32efc4ec3ed9c51083050d
+size    5,962,752 bytes
 ```
+
+**The log opens with the install's shader set** (`[FxcHashes]`): the directory, the
+effect and shader counts, and a digest of the whole set, then one line per effect.
+Same digest means the same shaders. Report the summary line. Known digests:
+
+| install | effects / shaders | digest |
+|---|---|---|
+| FusionFix **release** (the 2026-09-19 Windows install) | 103 / 1706 | `f2c08d89613d1628` |
+| FusionFix **branch** build, stock | 103 / 1706 | `d67ef3a9d5d18e1c` |
+| the Linux rig (branch + Liberty City Plates) | 107 / 1734 | `77d73fec1c9c658a` |
 
 **Cache files from this build carry no game shader bytecode.** The game's own `.fxc`
 shaders are resolved by hash from the install; only the shaders FusionFix builds at
@@ -45,7 +55,7 @@ Get-FileHash .\prebuilt\GTAIV.EFLC.FusionFix.asi -Algorithm SHA256
 git -C <fusionfix-clone> log --oneline -1 origin/shader-precompile-cache
 ```
 
-If that branch has moved past `567b3cb`, this binary is **stale**. Build from source
+If that branch has moved past `d8bfec0`, this binary is **stale**. Build from source
 or ask for a fresh one. A stale ASI is the worst failure mode here because everything
 still appears to work; it would just be measuring the wrong build.
 
