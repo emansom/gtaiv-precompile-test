@@ -23,16 +23,27 @@ against a warm driver cache.
 
 ## Golden Fossilize databases, one per bucket
 
-A Fossilize database holds exact Vulkan create-infos and SPIR-V. It produces driver
-cache hits only where DXVK would generate *identical* state, which depends on more
-than the GPU. The bucket key:
+A Fossilize database holds exact Vulkan create-infos and SPIR-V: API-level data, **not
+GPU machine code**. The driver compiles it for whatever GPU replays it, so the GPU's
+instruction set ("dialect") matters only to the driver's own cache, never to the
+database. What a database is tied to is **what DXVK emits**: it warms a cache only if
+DXVK would request byte-identical state. The bucket key is therefore what changes
+DXVK's output:
 
 | part | why | recorded today? |
 |---|---|---|
-| **DXVK build** | SPIR-V, layouts and spec constants change between DXVK releases | **no**, to add. FusionFix pins the DXVK it ships (`vulkan.dll` on Windows, `d3d9.dll` on Linux), so a hash of that module identifies it |
-| GPU vendor + model | DXVK's output depends on device features and properties | yes: `vendorId`/`deviceId` in the FFPC meta |
-| driver + driver version | features change with driver releases; the driver compiles the result | yes, since FusionFix `d1c6119`: `VkPhysicalDeviceDriverProperties`, e.g. `radv Mesa 26.2.3-arch1.1` |
+| **DXVK build** | SPIR-V, layouts and spec constants change between DXVK releases (though much survives: see the measurement below) | yes, since FusionFix `d2211b5`: `d3d9.dll 7856142 fnv:4e9cdaec8067db9f` |
+| driver + driver version | DXVK picks features and a few behaviours per driver; features change with driver releases | yes, since `d1c6119`: `VkPhysicalDeviceDriverProperties`, e.g. `radv Mesa 26.2.3-arch1.1` |
+| the Vulkan feature set DXVK sees | descriptor heap vs legacy binding, GPL, robustness, shader features: all change the SPIR-V/state | the recording itself carries it (Fossilize stores the enabled features) |
+| GPU vendor + model | **only through the feature set**: cards of one family on one driver expose the same features, so they share a bucket | recorded (`vendorId`/`deviceId`), but not a bucket key on its own |
 | OS | recorded, but whether it must split buckets is **not known** | yes: `windows` / `wine <ver>` |
+
+**Measured 2026-09-19:** Steam's DXVK 3.x bucket, recorded by other players on GPUs
+we cannot see and with DXVK 3.0.0–3.1.0, already holds **85.8%** of the graphics
+pipelines FusionFix's DXVK 3.1.1 built on this RX 9070 XT (RADV), 98.9% of its
+shader modules and all 8 of its internal compute pipelines. The main crowd
+database, mostly DXVK 1.x–2.x, holds 0.3%. So the partition that matters is DXVK
+generation + feature set, not the GPU model.
 
 In practice the driver mostly implies the OS (RADV is Linux-only). Whether the same
 driver under Wine and native Windows yields identical DXVK output is a measurement,
@@ -47,8 +58,10 @@ rendering, because replay only creates pipelines.
 - compare pipeline hashes (`fossilize-list`);
 - high overlap within a bucket and low overlap across buckets means the key is right.
 
-**Provenance TODO:** add the DXVK build (module hash, and version string if exposed) to
-the FFPC meta, so every contribution names its bucket.
+**Provenance:** done in FusionFix `d2211b5` (DXVK module hash in the FFPC meta). The
+recorder itself is in `vkcapture.ixx` (in-process, `CaptureVulkanPipelines = 1`): it
+wraps DXVK's Vulkan calls and writes `plugins\FusionFix.vkpipelines.foz`. First run:
+730 graphics + 8 compute pipelines, 562 shader modules, all tagged DXVK 3.1.1.
 
 ## Steam's Linux crowd database as a base
 
@@ -79,6 +92,29 @@ same driver.
 4. Compare pipeline and shader-module hashes: our set ∩ crowd set.
 5. Decide: high overlap means the crowd database is a usable base for the Linux/RADV
    bucket. Low overlap means it is not, and each run is still recorded locally anyway.
+
+**Result (2026-09-19, RX 9070 XT, RADV Mesa 26.2.3, DXVK 3.1.1, GE-Proton 11).**
+`tools/cache/fozinfo.py` reads the databases.
+- Steam downloaded three databases:
+  - the main crowd database, 1.85 GB, 280k graphics pipelines, recorded by GTA IV
+    players across DXVK 1.7 → 3.1.1 plus NvRemix, a DXVK-HDR build, HappinessMP and
+    the Rockstar launcher's vkd3d;
+  - bucket `923fa87291dfec1c`, 76 MB, 19k pipelines, DXVK 3.0.0–3.1.0;
+  - bucket `049c…`, vkd3d from the launcher and Social Club.
+- Steam's layer turned out to record only pipelines **absent** from its read-only
+  databases (104 of our run's pipelines, 1 of them in the main database). So our own
+  full recording was needed, from the new in-process recorder: 730 graphics
+  pipelines.
+
+| crowd database | our graphics pipelines it holds | shader modules | compute |
+|---|---:|---:|---:|
+| main (1.85 GB, DXVK 1.7–3.1.1) | 2 / 730 (0.3%) | 2.3% | 0% |
+| bucket `923fa87291dfec1c` (DXVK 3.0–3.1.0) | **626 / 730 (85.8%)** | 98.9% | 100% |
+| Steam's local recording of our run | 104 / 730 (14.2%) | 1.1% | 0% |
+
+626 + 104 = 730: the bucket plus Steam's "new" recording is exactly our set, which
+cross-checks the recorder. **Verdict: the right Steam bucket is a strong local base
+(~86%) for the Linux/RADV DXVK-3 bucket; the main crowd database is not.**
 
 Tools: `fossilize-list`, `fossilize-convert-db` and `fossilize-merge-db` were built in
 `/run/user/1000/zs/fz-build/cli/` for the research. That is tmpfs, so rebuild from

@@ -13,12 +13,20 @@ the vendored DirectX SDK) just to run one experiment.
 ```
 repo    emansom/GTAIV.EFLC.FusionFix
 branch  shader-precompile-cache
-commit  d8bfec0  "shaders: log the install's .fxc hash set"
+commit  c1e1c58  "shaders: record DXVK's Vulkan pipelines in-process with Fossilize"
 built   MSVC 14.51 (x86, /MT) via msvc-wine, the same toolchain and Platform=Win32
         target the project's CI uses
-sha256  5709cd450272047c0fcb1ce80c3c38bb067b79fa9a32efc4ec3ed9c51083050d
-size    5,962,752 bytes
+sha256  a17de64554f1e9a8d9874006aa81e97b6a50b358c9b58b07f41717562d55bcc7
+size    6,199,808 bytes
 ```
+
+**Vulkan-level recording (new, off by default).** With `CaptureVulkanPipelines = 1`
+under `[SHADERS]` the ASI also records the Vulkan pipelines DXVK creates to
+`plugins\FusionFix.vkpipelines.foz`, a Fossilize database. It needs no Vulkan layer;
+the log shows `[VkCapture] hooked vkGetInstanceProcAddr in vulkan-1.dll` on Windows.
+A recording from a Windows machine is wanted: it shows how well Steam's crowd data
+and a Linux recording match what DXVK builds on AMD's Windows driver. Read one with
+`python tools\cache\fozinfo.py <file>`.
 
 **The log opens with the install's shader set** (`[FxcHashes]`): the directory, the
 effect and shader counts, and a digest of the whole set, then one line per effect.
@@ -55,7 +63,7 @@ Get-FileHash .\prebuilt\GTAIV.EFLC.FusionFix.asi -Algorithm SHA256
 git -C <fusionfix-clone> log --oneline -1 origin/shader-precompile-cache
 ```
 
-If that branch has moved past `d8bfec0`, this binary is **stale**. Build from source
+If that branch has moved past `c1e1c58`, this binary is **stale**. Build from source
 or ask for a fresh one. A stale ASI is the worst failure mode here because everything
 still appears to work; it would just be measuring the wrong build.
 

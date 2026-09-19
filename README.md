@@ -176,6 +176,7 @@ gtaiv-precompile-test/
 │  │  ├─ basecov.py              # how much of real play a baseline covers, per replay tier
 │  │  ├─ merge_cache.py          # union several captures (the core of the golden cache)
 │  │  ├─ filter_cache.py         # drop keys naming given shaders (how the baseline was cleaned)
+│  │  ├─ fozinfo.py              # Fossilize .foz: who recorded it, counts, overlap between DBs
 │  │  ├─ upgrade_cache_v2.py     # one-off shim: v1 -> v2
 │  │  ├─ convert_cache.py        # one-off shim from the old 3-file format
 │  │  ├─ fxcgap.py               # which of the install's .fxc shaders (1706 stock) a capture reached
