@@ -197,18 +197,28 @@ D3DRS = {                     # D3DRENDERSTATETYPE values (d3d9types.h)
     "SEPARATEALPHABLENDENABLE": 206, "SRCBLENDALPHA": 207, "DESTBLENDALPHA": 208,
     "BLENDOPALPHA": 209,
 }
-MAX_RT, PS_SAMPLERS = 4, 16
+MAX_RT, PS_SAMPLERS, VS_SAMPLERS = 4, 16, 4
 _WRITE = ("COLORWRITEENABLE", "COLORWRITEENABLE1", "COLORWRITEENABLE2", "COLORWRITEENABLE3")
 
 
-def ps_sampler_use(code):
-    """[16] bools: which sampler slots an SM3 pixel shader DECLARES (dcl s#).
+def sampler_use(code):
+    """[16] bools: which sampler slots an SM3 shader DECLARES (dcl_* s#).
 
-    Mirrors ParseShaderIO in shaderprecompile.ixx. DXVK folds sampler dimensions into
-    spec constants for declared slots only; the recorded type of an undeclared slot
-    is leftover device state, so the replay masks it out and so must we."""
-    slots = [False] * PS_SAMPLERS
+    Mirrors ParseShaderIO in shaderprecompile.ixx, for BOTH stages. DXVK builds one
+    nullOrUnusedMask from the pixel and vertex shaders' declarations together
+    (d3d9_device.cpp:7384,7466) and feeds it to setPsSamplers/setVsSamplers, so the
+    recorded type of an undeclared slot is leftover device state that changes no
+    pipeline: the replay masks it out and so must we. A vertex shader's s0..s3 are
+    D3DVERTEXTEXTURESAMPLER0..3, i.e. KeyRecord.samplerType[16..19].
+
+    Returns None below SM2, where the instruction-length field does not exist and
+    the walk would desynchronise. The ASI does the same: a missing mask leaves the
+    key unmasked, which over-counts, while a WRONG mask merges two pipelines into
+    one key, which under-warms."""
     dw = struct.unpack("<%dI" % (len(code) // 4), code[:len(code) // 4 * 4])
+    if not dw or ((dw[0] >> 8) & 0xFF) < 2:
+        return None
+    slots = [False] * PS_SAMPLERS
     i = 1                                   # skip the version token
     while i < len(dw):
         tok = dw[i]
@@ -228,19 +238,37 @@ def ps_sampler_use(code):
     return slots
 
 
-def sampler_use_table(containers):
-    """psHash -> declared slots, from the bytecode the containers carry.
+ps_sampler_use = sampler_use      # the name this was called before it covered both stages
 
-    The ASI masks EVERY pixel shader it holds bytecode for -- RAGE's .fxc database,
-    the runtime registry, the cache's stored bytecode and FusionFix's own resources
-    (shaderprecompile.ixx, each psSamplerUse.emplace) -- and a container stores the
-    bytecode of every shader its keys name, so parsing all of it reproduces that."""
-    use = {}
+
+def sampler_use_table(containers, extra=None):
+    """(ps_use, vs_use): hash -> declared slots, from bytecode we can see.
+
+    The ASI masks EVERY shader it holds bytecode for -- RAGE's .fxc database, the
+    engine's own shader objects (GetFunction), the runtime registry, the cache's
+    stored bytecode and FusionFix's own resources (shaderprecompile.ixx, each
+    NoteSamplerUse call) -- and a container stores the bytecode of every shader its
+    keys name that the install cannot supply.
+
+    So for PIXEL shaders parsing the containers reproduces the ASI. For VERTEX
+    shaders it does NOT: nearly every vertex shader a key names is RAGE's own, whose
+    bytecode lives in the .fxc files and is deliberately not carried in the container.
+    Pass `extra` -- {hash: (stage, code)} from an .fxc dump -- to close that gap;
+    without it the vertex slots stay unmasked for those shaders and the key count
+    comes out ABOVE what the ASI reports."""
+    ps, vs = {}, {}
+
+    def note(h, stage, code):
+        slots = sampler_use(code)
+        if slots is not None:
+            (ps if stage == 1 else vs).setdefault(h, slots)
+
     for c in containers:
         for h, (stage, code) in c.shaders.items():
-            if stage == 1 and h not in use:
-                use[h] = ps_sampler_use(code)
-    return use
+            note(h, stage, code)
+    for h, (stage, code) in (extra or {}).items():
+        note(h, stage, code)
+    return ps, vs
 
 
 def replay_base_key(c, r):
@@ -262,13 +290,21 @@ def replay_base_key(c, r):
             write, blend)
 
 
-def replay_key(c, r, ps_use):
-    """ReplayPipelineKey: the base plus the spec-constant state."""
+def replay_key(c, r, use):
+    """ReplayPipelineKey: the base plus the spec-constant state.
+
+    `use` is the (ps_use, vs_use) pair sampler_use_table returns. Each stage's slots
+    are masked to what that stage's shader declares; a shader we cannot resolve keeps
+    its slots as recorded, which over-counts rather than under-warms -- the same
+    choice the ASI makes."""
+    ps_use, vs_use = use
     rs = lambda name: r[c.rs_index(D3DRS[name])]
-    use = ps_use.get(r[I_PS])
+    pu = ps_use.get(r[I_PS])
+    vu = vs_use.get(r[I_VS])
     samplers = r[13 + NUM_RS:13 + NUM_RS + NUM_SAMPLERS]
-    masked = tuple(t if (i >= PS_SAMPLERS or use is None or use[i]) else 0
-                   for i, t in enumerate(samplers))
+    ps_slots, vs_slots = samplers[:PS_SAMPLERS], samplers[PS_SAMPLERS:PS_SAMPLERS + VS_SAMPLERS]
+    masked = tuple(t if (pu is None or pu[i]) else 0 for i, t in enumerate(ps_slots)) + \
+             tuple(t if (vu is None or vu[j]) else 0 for j, t in enumerate(vs_slots))
     return (replay_base_key(c, r), rs("ALPHATESTENABLE"), rs("ALPHAFUNC"),
             rs("FOGENABLE"), rs("CLIPPLANEENABLE") & 0x3F, masked)
 
