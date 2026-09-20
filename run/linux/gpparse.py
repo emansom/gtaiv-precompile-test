@@ -44,6 +44,7 @@ FRAMES = r"gameplay frames(?: final)? t=[\d.]+ play=[\d.]+s: "
 # fifth element names a line that shows it does (otherwise the column stays empty).
 ORDERED = r"\[ShaderPrecompile\] order: 1\. "          # the build with the quiet waits
 METERED = r"\[VkCapture\] metrics: gameplay starts"     # the build with frame times
+ENGINE = r"\[ShaderPrecompile\] order: 1b\. engine warm phase"   # the run with the engine phase on
 
 METRICS = [
     # the loading screen
@@ -60,6 +61,17 @@ METRICS = [
     ("vk_foreign",     r"\[VkCapture\] replay: foreign, .*?: (\d+) entries created", "last", "all"),
     ("vk_foreign_not_relevant", r"\[VkCapture\] replay: foreign, .*?skipped: (\d+) not relevant", "last", "all"),
     ("d3d9_drawn",     r"\[ShaderPrecompile\] replay: drew (\d+) of \d+ pipelines", "last", "all"),
+    # the engine-driven warm phase (4c85a78; absent from a build or a run without it)
+    ("eng_level",      r"order: 1b\. engine warm phase \(level (\d+)\)", "last", "all"),
+    ("eng_start_t",    r"order: 1b\. engine warm phase \(level \d+\), t=([\d.]+)", "last", "all"),
+    ("eng_off",        r"\[ShaderPrecompile\] engine: OFF", "count", "all", ENGINE),
+    ("eng_passes",     r"engine: enumerated .*?, (\d+) passes", "last", "all"),
+    ("eng_sets",       r"-> (\d+) distinct render-target/depth/sample sets", "last", "all"),
+    ("eng_jobs",       r"engine: (\d+) jobs after dedup", "last", "all"),
+    ("eng_drawn",      r"engine: drew (\d+) of \d+ jobs", "last", "all"),
+    ("eng_draw_s",     r"engine: drew \d+ of \d+ jobs in (\d+)s", "last", "all"),
+    ("eng_failed",     r"engine: drew .*?\((\d+) failed", "last", "all"),
+    ("eng_capped",     r"STOPPED AT THE JOB CAP", "count", "all", ENGINE),
     ("before_pipes",   BEFORE + r"(\d+) pipelines", "last", "all"),
     ("before_compiled", BEFORE + r".*?>=5 ms \(compiled\): (\d+)", "last", "all"),
     # gameplay: DXVK's own pipeline creations (cumulative; the last line is the value at exit)
@@ -84,11 +96,13 @@ METRICS = [
     ("route_long_frames", r"gameplay long frame t=", "count", "route", METERED),
     ("route_long_spikes", r"gameplay long frame t=.*spike yes", "count", "route", METERED),
     ("route_worst_frame_ms", r"gameplay long frame t=[\d.]+: ([\d.]+) ms", "max", "route"),
-    ("faults",         r"FAULT|faulted", "count", "all"),
+    # A real fault only. The engine phase's summary line always carries "0 faulted", and
+    # counting that as a fault would make every engine run look like it crashed.
+    ("faults",         r"FAULT|enumeration faulted|faulted on|[1-9]\d* faulted", "count", "all"),
 ]
 
 DEFAULT_COLS = ["condition", "run", "cold", "load_s", "load_pass_s", "load_hold_s", "quiet_s", "quiet_gave_up",
-                "vk_replayed",
+                "vk_replayed", "eng_jobs", "eng_drawn", "eng_draw_s", "before_pipes", "before_compiled",
                 "gp_pipes", "gp_compiled", "gp_over20", "gp_worst_ms", "route_gp_pipes", "route_gp_compiled",
                 "route_slow_compiles", "ls_compiled",
                 "fps_avg", "p99_ms", "max_ms", "spikes", "over50", "route_long_frames", "route_worst_frame_ms",

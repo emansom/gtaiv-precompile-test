@@ -16,7 +16,7 @@
   "PrecompileShaders": 1, "PrecompileCoverage": 2, "PrecompileOverlay": 1, "PrecompileCoverSdr": 0,
   "PrecompileCoverPresentModes": 1, "PrecompileFlashProbe": 0, "PrecompileReplayCapturedKeys": 1,
   "PrecompileAdaptiveExit": 0, "PrecompileBudgetSeconds": 0, "PrecompileFenceChunk": 1,
-  "PrecompileSpecVariants": 1, "PrecompileExportBaseline": 0,
+  "PrecompileSpecVariants": 1, "PrecompileExportBaseline": 0, "PrecompileEngineWarm": 0,
   "CaptureDrawKeys": 0, "CaptureFlushSeconds": 10,
   "CaptureVulkanPipelines": 1, "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesTrace": 0,
   "ReplayVulkanPipelinesForeign": 1
@@ -58,6 +58,31 @@
    "about": "Everything the defaults warm: D3D9 pass, own recording, foreign databases (the player's Steam pre-cache buckets).",
    "expect": {"PrecompileShaders": 1, "PrecompileReplayCapturedKeys": 1, "CaptureDrawKeys": 0,
               "CaptureVulkanPipelines": 0, "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesForeign": 1}
+  },
+  "synth": {
+   "about": "The control for 'engine': the same pass with the engine phase OFF, so what is left is the old synthetic dummy-draw pass (PrecompileShaders = 1, PrecompileReplayCapturedKeys = 0). The difference between this and 'engine' is what the engine warm phase is worth on its own.",
+   "expect": {"PrecompileShaders": 1, "PrecompileEngineWarm": 0, "PrecompileReplayCapturedKeys": 0,
+              "CaptureDrawKeys": 0, "CaptureVulkanPipelines": 0,
+              "ReplayVulkanPipelines": 0, "ReplayVulkanPipelinesForeign": 0}
+  },
+  "engine": {
+   "about": "The engine-driven warm phase ALONE: no recorded keys, no Fossilize replay. PrecompileShaders stays 1 because the engine phase runs inside that pass; with PrecompileReplayCapturedKeys = 0 the pass's own work is the old synthetic dummy-draw pass, so this arm is 'engine warm + synthetic', not engine warm in a vacuum.",
+   "expect": {"PrecompileShaders": 1, "PrecompileEngineWarm": 1, "PrecompileReplayCapturedKeys": 0,
+              "CaptureDrawKeys": 0, "CaptureVulkanPipelines": 0,
+              "ReplayVulkanPipelines": 0, "ReplayVulkanPipelinesForeign": 0}
+  },
+  "full+engine": {
+   "about": "Everything: 'full' (D3D9 replay, own and foreign Fossilize) plus the engine warm phase.",
+   "expect": {"PrecompileShaders": 1, "PrecompileEngineWarm": 1, "PrecompileReplayCapturedKeys": 1,
+              "CaptureDrawKeys": 0, "CaptureVulkanPipelines": 0,
+              "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesForeign": 1}
+  },
+  "warm+engine": {
+   "about": "'full+engine' on a warm Mesa cache, straight after a 'full+engine' run: the floor this build can reach.",
+   "cold": false,
+   "expect": {"PrecompileShaders": 1, "PrecompileEngineWarm": 1, "PrecompileReplayCapturedKeys": 1,
+              "CaptureDrawKeys": 0, "CaptureVulkanPipelines": 0,
+              "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesForeign": 1}
   },
   "full+win-d3d9": {
    "about": "'full' plus the Windows PC's D3D9 capture dropped in the way a player would.",
