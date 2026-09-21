@@ -45,6 +45,7 @@ FRAMES = r"gameplay frames(?: final)? t=[\d.]+ play=[\d.]+s: "
 ORDERED = r"\[ShaderPrecompile\] order: 1\. "          # the build with the quiet waits
 METERED = r"\[VkCapture\] metrics: gameplay starts"     # the build with frame times
 ENGINE = r"\[ShaderPrecompile\] order: 1b\. engine warm phase"   # the run with the engine phase on
+BOOTGATE = r"\[ShaderPrecompile\] boot gate armed at"            # a532e24+: the gate past the frontend
 
 METRICS = [
     # the loading screen
@@ -67,11 +68,26 @@ METRICS = [
     ("eng_off",        r"\[ShaderPrecompile\] engine: OFF", "count", "all", ENGINE),
     ("eng_passes",     r"engine: enumerated .*?, (\d+) passes", "last", "all"),
     ("eng_sets",       r"-> (\d+) distinct render-target/depth/sample sets", "last", "all"),
-    ("eng_jobs",       r"engine: (\d+) jobs after dedup", "last", "all"),
+    # 4c85a78 "engine: N jobs after dedup"; a532e24 "engine: level L emits N jobs after dedup"
+    ("eng_jobs",       r"engine: (?:level \d+ emits )?(\d+) jobs after dedup", "last", "all"),
     ("eng_drawn",      r"engine: drew (\d+) of \d+ jobs", "last", "all"),
     ("eng_draw_s",     r"engine: drew \d+ of \d+ jobs in (\d+)s", "last", "all"),
     ("eng_failed",     r"engine: drew .*?\((\d+) failed", "last", "all"),
     ("eng_capped",     r"STOPPED AT THE JOB CAP", "count", "all", ENGINE),
+    # the boot gate (a532e24+): where the pass ran, what the engine gave it, which path it took
+    ("gate_phases",    r"gate: game viewport \w+, render phases \d+ -> (\d+)", "last", "all"),
+    ("gate_had",       r"gate: game viewport \w+, render phases (\d+) ->", "last", "all"),
+    ("gate_fallback",  r"gate: FALLBACK - ran after", "count", "all", BOOTGATE),
+    ("gate_abandoned", r"gate: the pass will not run from here", "count", "all", BOOTGATE),
+    ("gate_held_s",    r"gate: released after ([\d.]+) s", "last", "all"),
+    ("gate_slices",    r"gate: released after [\d.]+ s, (\d+) slices", "last", "all"),
+    ("eng_contexts",   r"engine: .*? -> (\d+) contexts", "last", "all"),
+    ("eng_ctx_shipped", r"engine: .*? -> \d+ contexts \(\d+ from phases, \d+ from the registry, (\d+) SHIPPED",
+                       "last", "all"),
+    ("eng_targets",    r"engine: \d+ target-bearing render phases and (\d+) registry targets", "last", "all"),
+    ("eng_cheap",      r"engine: PATH = CHEAP", "count", "all", ENGINE),
+    ("eng_probe_made", r"engine: probe drew \d+ of \d+ jobs; the driver compiled (\d+)", "last", "all"),
+    ("overlay_frames", r"precompile complete in [\d.]+s \((\d+) overlay frames", "last", "all"),
     ("before_pipes",   BEFORE + r"(\d+) pipelines", "last", "all"),
     ("before_compiled", BEFORE + r".*?>=5 ms \(compiled\): (\d+)", "last", "all"),
     # gameplay: DXVK's own pipeline creations (cumulative; the last line is the value at exit)
@@ -102,6 +118,7 @@ METRICS = [
 ]
 
 DEFAULT_COLS = ["condition", "run", "cold", "load_s", "load_pass_s", "load_hold_s", "quiet_s", "quiet_gave_up",
+                "gate_phases", "gate_slices", "eng_contexts", "eng_cheap",
                 "vk_replayed", "eng_jobs", "eng_drawn", "eng_draw_s", "before_pipes", "before_compiled",
                 "gp_pipes", "gp_compiled", "gp_over20", "gp_worst_ms", "route_gp_pipes", "route_gp_compiled",
                 "route_slow_compiles", "ls_compiled",

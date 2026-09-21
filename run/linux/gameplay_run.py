@@ -71,10 +71,18 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 ROUTE_PY = os.path.join(HERE, "route.py")
 DROP_DIRS = {".bin": "d3d9cache", ".foz": "pipelinecache"}
 COPY_NAME = re.compile(r"^FusionFix\.[0-9a-f]{16}\.(bin|foz)(\..+)?$")   # incl. a write's temp name
-# The loading-screen pass is over: "gate: ran" follows the pass however it ended. None
-# at all: disabled, or the hook failed (then the game just loads).
-PASS_DONE = ("gate: ran after",)
-PASS_NONE = ("disabled via ini", "FAILED to hook loadscreen render")
+# The loading-screen pass is over. Which line says so depends on the gate the build has:
+#   a532e24+  the BOOT gate, at rageBoot_InitSession, after the frontend and the episode
+#             menu: the pass runs in slices on the loading-screen thread and the gate
+#             logs "gate: released after <s> s, <n> slices" when it lets the screen go.
+#             Its own fail-safe (the boot addresses did not validate) falls back to the
+#             loading-screen gate and logs "gate: FALLBACK - ran after ...".
+#   4c85a78-  the loading-screen gate only: "gate: ran after ...".
+# None at all: disabled, the hook failed, or the gate gave the pass up (AbandonPass) --
+# in which case the game loads on and there is nothing more to wait for.
+PASS_DONE = ("gate: released after", "gate: FALLBACK - ran after", "gate: ran after")
+PASS_NONE = ("disabled via ini", "FAILED to hook loadscreen render",
+             "gate: the pass will not run from here")
 ENV_KEYS = re.compile(r"^(MESA_|RADV_|DXVK_|VKD3D_|XDG_CACHE_HOME|STEAM_COMPAT_SHADER|__GL_SHADER|"
                       r"PROTON_|WINEDLLOVERRIDES|SteamAppId|SteamGameId|STEAM_COMPAT_APP_ID)")
 
@@ -211,11 +219,20 @@ class Runner:
         return copies, foreign
 
     def state_files(self):
+        """The mod-managed state files this run may remove, minus --keep-state.
+
+        --keep-state is what makes a "repeat launch" arm possible: the engine warm
+        phase's fingerprint (FusionFix.enginewarm.stamp) is the whole mechanism of the
+        cheap path, so a run that is meant to meet a stamp needs the previous run to
+        have left one, and a run that is meant to be a first launch needs it gone.
+        """
         pats = self.table.get("_state_files", [])
+        keep = list(self.cond.get("keep_state", [])) + list(self.a.keep_state)
         snap = set(os.listdir(self.a.snapshot)) if os.path.isdir(self.a.snapshot) else set()
         return sorted(os.path.join(PLUGINS, e) for e in os.listdir(PLUGINS)
                       if os.path.isfile(os.path.join(PLUGINS, e)) and e not in snap
-                      and any(fnmatch.fnmatchcase(e, p) for p in pats))
+                      and any(fnmatch.fnmatchcase(e, p) for p in pats)
+                      and not any(fnmatch.fnmatchcase(e, p) for p in keep))
 
     def preflight(self, exp):
         a = self.a
@@ -423,6 +440,7 @@ class Runner:
         m["asi_sha256"] = sha256(ASI)
         m["ini_sha256"] = sha256(INI)
         m["route_file"] = a.route
+        m["keep_state"] = list(self.cond.get("keep_state", [])) + list(a.keep_state)
         why = self.preflight(exp)
         if why:
             for w in why:
@@ -515,6 +533,10 @@ def main():
                     help="assert one more [SHADERS] value, or override the condition's")
     ap.add_argument("--dropin", action="append", default=[], metavar="FILE",
                     help="stage one more .bin/.foz (repo-relative or absolute) for this run")
+    ap.add_argument("--keep-state", action="append", default=[], metavar="GLOB",
+                    help="a '_state_files' name this run must NOT remove, before or after "
+                         "(e.g. FusionFix.enginewarm.stamp, to leave the warm fingerprint "
+                         "for the next run or to meet the one the last run left)")
     ap.add_argument("--conditions", default=os.path.join(HERE, "conditions.json"))
     ap.add_argument("--route", default=os.path.join(HERE, "routes", "lc-districts.json"))
     ap.add_argument("--no-refocus", action="store_true", help="report freezes, never focus the window")

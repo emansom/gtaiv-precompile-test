@@ -17,6 +17,8 @@
   "PrecompileCoverPresentModes": 1, "PrecompileFlashProbe": 0, "PrecompileReplayCapturedKeys": 1,
   "PrecompileAdaptiveExit": 0, "PrecompileBudgetSeconds": 0, "PrecompileFenceChunk": 1,
   "PrecompileSpecVariants": 1, "PrecompileExportBaseline": 0, "PrecompileEngineWarm": 0,
+  "PrecompileEmitLog": 0, "PrecompileSliceMs": 8, "PrecompileGateMaxSeconds": 0,
+  "PrecompileReuseWarmCache": 1,
   "CaptureDrawKeys": 0, "CaptureFlushSeconds": 10,
   "CaptureVulkanPipelines": 1, "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesTrace": 0,
   "ReplayVulkanPipelinesForeign": 1
@@ -34,10 +36,17 @@
   "by a crash mid-write. Names read off the merged build d3c5dc1: d3d9cache.h StatePath and WriteFileAtomic,",
   "vkcapture.ixx ShareOwnRecording. Both temp files sit beside the ASI -- the Vulkan side stages its copy as",
   "plugins\\FusionFix.pipelinecache.tmp and renames it in, so no stray .tmp lands in the folder players copy.",
-  "The runner lists every file it removes in meta.json."
+  "The runner lists every file it removes in meta.json.",
+  "From a532e24 the engine warm phase keeps a fingerprint of (enumeration, driver, DXVK build, shader set) in",
+  "FusionFix.enginewarm.stamp and takes a cheap 512-job probe instead of the whole pass when it matches, so",
+  "the stamp is state too: a cold run that meets one is not a first launch. It is removed like the others",
+  "unless the run passes --keep-state (or the condition sets 'keep_state'), which is how the repeat-launch",
+  "arm is measured. PrecompileEmitLog writes FusionFix.enginewarm.emitted.jsonl beside the ASI; it is off in",
+  "every measurement condition here, and removed if a run leaves one."
  ],
  "_state_files": ["FusionFix.d3d9cache.state", "FusionFix.pipelinecache.state",
-                  "FusionFix.d3d9cache.tmp", "FusionFix.pipelinecache.tmp"],
+                  "FusionFix.d3d9cache.tmp", "FusionFix.pipelinecache.tmp",
+                  "FusionFix.enginewarm.stamp", "FusionFix.enginewarm.emitted.jsonl"],
  "conditions": {
   "off": {
    "about": "Nothing warmed: no loading-screen pass, no Vulkan replay, no capture.",
@@ -71,6 +80,12 @@
               "CaptureDrawKeys": 0, "CaptureVulkanPipelines": 0,
               "ReplayVulkanPipelines": 0, "ReplayVulkanPipelinesForeign": 0}
   },
+  "engine-only": {
+   "about": "The engine-driven warm phase with NOTHING else warming: no recorded D3D9 keys, no Fossilize replay, and PrecompileCoverage = 0 so the old synthetic dummy-draw pass returns immediately (DummyDrawPass's first line). That is what separates this from the 09-20 'engine' arm, where the synthetic pass ran alongside and measured worse than doing nothing. PrecompileShaders stays 1 because the engine phase lives inside that pass; the shader objects it creates (CreateAllShaders) are the only other work left.",
+   "expect": {"PrecompileShaders": 1, "PrecompileEngineWarm": 1, "PrecompileCoverage": 0,
+              "PrecompileReplayCapturedKeys": 0, "CaptureDrawKeys": 0, "CaptureVulkanPipelines": 0,
+              "ReplayVulkanPipelines": 0, "ReplayVulkanPipelinesForeign": 0}
+  },
   "full+engine": {
    "about": "Everything: 'full' (D3D9 replay, own and foreign Fossilize) plus the engine warm phase.",
    "expect": {"PrecompileShaders": 1, "PrecompileEngineWarm": 1, "PrecompileReplayCapturedKeys": 1,
@@ -78,8 +93,9 @@
               "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesForeign": 1}
   },
   "warm+engine": {
-   "about": "'full+engine' on a warm Mesa cache, straight after a 'full+engine' run: the floor this build can reach.",
+   "about": "'full+engine' on a warm Mesa cache, straight after a 'full+engine' run: the floor this build can reach, and the launch that meets the warm fingerprint the run before it left (so it also measures what a repeat load costs). Run the 'full+engine' run before it with --keep-state FusionFix.enginewarm.stamp as well, or its post-run clean takes the stamp away.",
    "cold": false,
+   "keep_state": ["FusionFix.enginewarm.stamp"],
    "expect": {"PrecompileShaders": 1, "PrecompileEngineWarm": 1, "PrecompileReplayCapturedKeys": 1,
               "CaptureDrawKeys": 0, "CaptureVulkanPipelines": 0,
               "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesForeign": 1}

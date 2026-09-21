@@ -11,6 +11,7 @@ game for one named condition, driven along the same route every time.
 | `routes/lc-districts.json` | the route: Star Junction, the Algonquin Bridge, Broker, the Broker Bridge, the Cluckin' Bell |
 | `conditions.json` | the conditions: the `[SHADERS]` keys each asserts, drop-ins, cold or warm |
 | `gpparse.py` | result folders to markdown tables |
+| `samewindow.py` | compare logs over the same amount of gameplay (for runs that did not finish the route) |
 | `kwin-focus-gtaiv.js` | KWin script that gives the game window focus back |
 
 Needs: the frida-gadget `.asi` in `plugins\` (the route and the quit both use it),
@@ -36,9 +37,14 @@ and the ini matches the condition; it never edits the ini. Then it:
    snapshot state files, then stages the condition's drop-ins (below);
 3. for a cold condition, empties `~/.cache/mesa_shader_cache` (the game's Mesa cache while
    Steam Shader Pre-Caching is off; checked against the game's environment);
-4. launches through Steam, waits for the loading-screen pass (`gate: ran after`, or `disabled
-   via ini`) in a log newer than the launch, and runs `route.py`, which waits for gameplay
-   and settles 15 live seconds before the route;
+4. launches through Steam, waits for the warm pass to be over in a log newer than the launch,
+   and runs `route.py`, which waits for gameplay and settles 15 live seconds before the route;
+   which line says "over" depends on the build's gate: `gate: released after <s> s, <n> slices`
+   from `a532e24` on (the boot gate at `rageBoot_InitSession`, past the frontend and the
+   episode menu), `gate: ran after` before it, `gate: FALLBACK - ran after` if the boot gate's
+   addresses did not validate, and `disabled via ini` / `gate: the pass will not run from here`
+   when there is no pass to wait for. Nothing drives the menus: this install autoloads
+   straight into the session, so the boot gate fires by itself;
 5. plays on 20 s (FusionFix reports every 15 s), copies the log, quits with the gtaiv-quit
    skill, copies the final log, cleans the drop-in folders and state files again, and puts
    the snapshot recordings back.
@@ -62,9 +68,14 @@ and is deleted before and after a run. Anything else there, including a subfolde
 there by hand: the runner refuses to start rather than delete it.
 
 State files: FusionFix remembers the snapshot it last wrote in a file next to the ASI, one
-per side: `FusionFix.d3d9cache.state` and `FusionFix.pipelinecache.state`. The runner removes
-those and the D3D9 side's crash leftover `FusionFix.d3d9cache.tmp` (`_state_files` in
-`conditions.json`) and lists every file it removed in `meta.json`.
+per side: `FusionFix.d3d9cache.state` and `FusionFix.pipelinecache.state`. From `a532e24` the
+engine warm phase adds `FusionFix.enginewarm.stamp`, the fingerprint that decides between the
+whole pass and a 512-job probe, and `PrecompileEmitLog` adds
+`FusionFix.enginewarm.emitted.jsonl`. The runner removes all of those and the crash leftovers
+(`_state_files` in `conditions.json`) and lists every file it removed in `meta.json` — so a
+cold run really is a first launch. `--keep-state GLOB` (or a condition's `"keep_state"`) keeps
+one of them: that is how the repeat-launch arm is measured, and it has to be passed to BOTH
+the run that leaves the stamp and the run that is meant to meet it.
 
 Not cleared: DXVK 3.x's own cache of translated shaders
 (`compatdata/12210/.../AppData/Local/dxvk`) is in Steam's folder. A cold run only makes the
