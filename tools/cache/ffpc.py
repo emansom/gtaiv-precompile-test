@@ -65,6 +65,46 @@ def default_ff_stages():
     return out
 
 
+# Which of ARG0/1/2 an op reads, exactly as D3D9DeviceEx::GetTextureStageArgMask
+# decides it (dxvk d3d9_device.cpp:8273). Mirrors pipelinekeys::FFArgMask.
+def ff_arg_mask(op):
+    if op in (1, 22, 23):      # DISABLE, BUMPENVMAP, BUMPENVMAPLUMINANCE
+        return 0b000
+    if op in (2, 17):          # SELECTARG1, PREMODULATE
+        return 0b010
+    if op == 3:                # SELECTARG2
+        return 0b100
+    if op in (25, 26):         # MULTIPLYADD, LERP
+        return 0b111
+    return 0b110
+
+
+def canonical_ff_stages(ff):
+    """Mirrors pipelinekeys::CanonicalFFStages.
+
+    The capture writes a disabled stage all-zero with both ops DISABLE, which is
+    what D3D9SpecData::disableTextureStage stores; a widened pre-v3 record gets
+    D3D9's defaults instead. Both mean "off", so they have to hash the same or a
+    v3 capture replayed beside a v2 baseline draws every no-pixel-shader identity
+    twice. Same two merging rules as the ASI: nothing survives the first disabled
+    stage, and an argument the op does not consume is zeroed."""
+    out = list(ff)
+    off = False
+    for s in range(FF_STAGES):
+        b = s * 9
+        if off or out[b] == 1:               # D3DTOP_DISABLE
+            off = True
+            out[b:b + 9] = [1, 1, 0, 0, 0, 0, 0, 0, 0]
+            continue
+        cm, am = ff_arg_mask(out[b]), ff_arg_mask(out[b + 1])
+        for a in range(3):
+            if not (cm >> a) & 1:
+                out[b + 3 + a] = 0
+            if not (am >> a) & 1:
+                out[b + 6 + a] = 0
+    return tuple(out)
+
+
 def widen_to_v3(r, rs_types):
     """The v3 specialisation block for a pre-v3 record, appended in place.
 
@@ -453,7 +493,8 @@ def replay_key(c, r, use, bools=None):
     fog_modes = (rs("FOGVERTEXMODE"), rs("FOGTABLEMODE")) if fog else (0, 0)
     point = ((bool(rs("POINTSPRITEENABLE")), bool(not r[I_VS] and rs("POINTSCALEENABLE")))
              if r[4] == 1 else (False, False))          # D3DPT_POINTLIST
-    ff = tuple(r[I_FFSTAGE:I_FFSTAGE + 9 * FF_STAGES]) if not r[I_PS] else ()
+    ff = (canonical_ff_stages(r[I_FFSTAGE:I_FFSTAGE + 9 * FF_STAGES])
+          if not r[I_PS] else ())
 
     def mask_bools(h, bits):
         if not h:
