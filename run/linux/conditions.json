@@ -18,7 +18,7 @@
   "PrecompileAdaptiveExit": 0, "PrecompileBudgetSeconds": 0, "PrecompileFenceChunk": 1,
   "PrecompileSpecVariants": 1, "PrecompileExportBaseline": 0, "PrecompileEngineWarm": 0,
   "PrecompileEmitLog": 0, "PrecompileSliceMs": 8, "PrecompileGateMaxSeconds": 0,
-  "PrecompileReuseWarmCache": 1,
+  "PrecompileReuseWarmCache": 1, "PrecompileBootGate": 1,
   "PrecompileWarmDevice": 1, "PrecompileCrashLog": 0,
   "PrecompileWarmMusic": 1, "PrecompileWarmMusicTracks": "",
   "CaptureDrawKeys": 0, "CaptureFlushSeconds": 10,
@@ -75,6 +75,12 @@
    "about": "Everything the defaults warm: D3D9 pass, own recording, foreign databases (the player's Steam pre-cache buckets).",
    "expect": {"PrecompileShaders": 1, "PrecompileReplayCapturedKeys": 1, "CaptureDrawKeys": 0,
               "CaptureVulkanPipelines": 0, "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesForeign": 1}
+  },
+  "full-oldgate": {
+   "about": "'full' with the warm pass at the OLD loading-screen gate (PrecompileBootGate = 0, from e21a4b9): one blocking call on the first loading screen, presenting its own frames, instead of slices behind the game's. It is the control arm for anything about the gate, and from e21a4b9 it is one ini key rather than a second binary -- which is how the 2026-09-21 comparison had to be made, with the build as a second variable. The number it exists to produce is 'created by DXVK before gameplay': the two gates have to agree, or the replay is still building a different set of pipelines depending on where it runs.",
+   "expect": {"PrecompileShaders": 1, "PrecompileReplayCapturedKeys": 1, "PrecompileBootGate": 0,
+              "PrecompileEngineWarm": 0, "CaptureDrawKeys": 0, "CaptureVulkanPipelines": 0,
+              "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesForeign": 1}
   },
   "synth": {
    "about": "The control for 'engine': the same pass with the engine phase OFF, so what is left is the old synthetic dummy-draw pass (PrecompileShaders = 1, PrecompileReplayCapturedKeys = 0). The difference between this and 'engine' is what the engine warm phase is worth on its own.",

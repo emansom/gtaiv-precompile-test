@@ -249,6 +249,7 @@ D3DRS = {                     # D3DRENDERSTATETYPE values (d3d9types.h)
     "ALPHABLENDENABLE": 27, "FOGENABLE": 28, "SPECULARENABLE": 29,
     "FOGTABLEMODE": 35, "CLIPPLANEENABLE": 152, "POINTSPRITEENABLE": 156,
     "POINTSCALEENABLE": 157, "FOGVERTEXMODE": 140,
+    "SHADEMODE": 9, "FILLMODE": 8, "MULTISAMPLEANTIALIAS": 161, "MULTISAMPLEMASK": 162,
     "COLORWRITEENABLE": 168, "BLENDOP": 171, "COLORWRITEENABLE1": 190,
     "COLORWRITEENABLE2": 191, "COLORWRITEENABLE3": 192,
     "SEPARATEALPHABLENDENABLE": 206, "SRCBLENDALPHA": 207, "DESTBLENDALPHA": 208,
@@ -384,7 +385,13 @@ def sampler_use_table(containers, extra=None):
 
 
 def replay_base_key(c, r):
-    """ReplayBaseKey: shaders, vertex input (incl. instancing), output/blend state."""
+    """ReplayBaseKey: shaders, vertex input (incl. instancing), output/blend state,
+    and the rasterizer/multisample words DxvkGraphicsPipelineStateInfo bakes.
+
+    D3DRS_MULTISAMPLEANTIALIAS is not a no-op on a single-sampled target:
+    BindRasterizerState maps it to DxvkRsInfo's sampleCount 0 or 1 and the state
+    struct is compared as bytes, so the two are two cache entries and two compiles.
+    Cull mode and front face ARE dynamic and stay out."""
     rs = lambda name: r[c.rs_index(D3DRS[name])]
     rts = r[6:6 + MAX_RT]
     write = tuple((rs(_WRITE[i]) & 0xF) if rts[i] else 0 for i in range(MAX_RT))
@@ -396,10 +403,15 @@ def replay_base_key(c, r):
         blend = (1,) + color + alpha
     d = r[I_DECL]
     decl = c.decls[d] if d != DECL_NONE and d < len(c.decls) else b""
+    raster = (rs("SHADEMODE") == 1,                         # D3DSHADE_FLAT
+              rs("FILLMODE"),
+              0 if rs("MULTISAMPLEANTIALIAS") else 1,
+              # DXVK forces 0xffff unless RT0 is multisampled above NONMASKABLE.
+              (rs("MULTISAMPLEMASK") & 0xFFFF) if r[11] > 1 else 0xFFFF)
     return (r[I_VS], r[I_PS], decl, r[3], r[4],             # vs, ps, decl, fvf, prim
             tuple(r[I_STREAMS:I_STREAMS + MAX_STREAMS]),
             tuple(rts), r[10], r[11], r[12],                # ds, msType, msQuality
-            write, blend)
+            write, blend, raster)
 
 
 def replay_key(c, r, use, bools=None):
