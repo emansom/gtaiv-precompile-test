@@ -18,7 +18,7 @@
   "PrecompileAdaptiveExit": 0, "PrecompileBudgetSeconds": 0, "PrecompileFenceChunk": 1,
   "PrecompileSpecVariants": 1, "PrecompileExportBaseline": 0, "PrecompileEngineWarm": 0,
   "PrecompileEmitLog": 0, "PrecompileSliceMs": 8, "PrecompileGateMaxSeconds": 0,
-  "PrecompileReuseWarmCache": 1, "PrecompileBootGate": 1,
+  "PrecompileReuseWarmCache": 1, "PrecompileBootGate": 1, "PrecompileKeySampleCount": 0,
   "PrecompileWarmDevice": 1, "PrecompileCrashLog": 0,
   "PrecompileWarmMusic": 1, "PrecompileWarmMusicTracks": "",
   "CaptureDrawKeys": 0, "CaptureFlushSeconds": 10,

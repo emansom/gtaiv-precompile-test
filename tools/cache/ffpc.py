@@ -403,9 +403,14 @@ def replay_base_key(c, r):
         blend = (1,) + color + alpha
     d = r[I_DECL]
     decl = c.decls[d] if d != DECL_NONE and d < len(c.decls) else b""
+    # D3DRS_MULTISAMPLEANTIALIAS is deliberately NOT here, and the ASI leaves it
+    # out too (PrecompileKeySampleCount = 0). DXVK's source says it should be --
+    # it becomes DxvkRsInfo's sample count, which is compared byte for byte -- but
+    # measured on this rig, same binary and same gate, keying on it draws 1188
+    # pipelines instead of 1093 and the driver finishes with the same 786 either
+    # way. Ninety-five draws, no pipelines.
     raster = (rs("SHADEMODE") == 1,                         # D3DSHADE_FLAT
               rs("FILLMODE"),
-              0 if rs("MULTISAMPLEANTIALIAS") else 1,
               # DXVK forces 0xffff unless RT0 is multisampled above NONMASKABLE.
               (rs("MULTISAMPLEMASK") & 0xFFFF) if r[11] > 1 else 0xFFFF)
     return (r[I_VS], r[I_PS], decl, r[3], r[4],             # vs, ps, decl, fvf, prim
