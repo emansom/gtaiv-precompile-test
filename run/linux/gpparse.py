@@ -14,7 +14,7 @@ group is the value, and how to combine the matching lines:
   last      the last match (the cumulative counters: the value at exit)
   first     the first match
   count     how many lines match
-  sum, max  over the matches' values
+  sum, max, min  over the matches' values
   delta     a cumulative counter across the route: the first report after the route's
             end (else the last one before it) minus the last one before its start.
             FusionFix reports every 15 s (141a876: only when the count changed), so the
@@ -46,6 +46,8 @@ ORDERED = r"\[ShaderPrecompile\] order: 1\. "          # the build with the quie
 METERED = r"\[VkCapture\] metrics: gameplay starts"     # the build with frame times
 ENGINE = r"\[ShaderPrecompile\] order: 1b\. engine warm phase"   # the run with the engine phase on
 BOOTGATE = r"\[ShaderPrecompile\] boot gate armed at"            # a532e24+: the gate past the frontend
+MEM = r"\[ShaderPrecompile\] memory "                            # 84a422c: the address-space walk
+GPMEM = r"\[VkCapture\] memory in gameplay: "
 
 METRICS = [
     # the loading screen
@@ -112,6 +114,26 @@ METRICS = [
     ("route_long_frames", r"gameplay long frame t=", "count", "route", METERED),
     ("route_long_spikes", r"gameplay long frame t=.*spike yes", "count", "route", METERED),
     ("route_worst_frame_ms", r"gameplay long frame t=[\d.]+: ([\d.]+) ms", "max", "route"),
+    # 32-bit address space (84a422c). "memory <where>: free N MB (largest run M MB, ...)"
+    # from GlobalMemoryStatusEx + a VirtualQuery walk; vkcapture writes the same line as
+    # "memory in gameplay" every 15 s. `free` is the sum of the free regions and is what
+    # the warm walk spends; `largest run` is the biggest single one and is what collapsed
+    # in the run that died on 2026-09-20. The gameplay floor is the number to compare
+    # across arms: an arm that does not give its address space back plateaus lower.
+    ("mem_gate_mb",     MEM + r"at the gate, before the pass: free (\d+) MB", "last", "all"),
+    ("mem_gate_run_mb", MEM + r"at the gate, before the pass: free \d+ MB \(largest run (\d+)", "last", "all"),
+    ("mem_after_d3d9_mb", MEM + r"after the recorded D3D9 replay: free (\d+) MB", "last", "all"),
+    ("mem_walk_end_mb", MEM + r"engine: at the end of the walk: free (\d+) MB", "last", "all"),
+    ("mem_walk_freed_mb", MEM + r"engine: after the walk's device and resources went: free (\d+) MB",
+                        "last", "all"),
+    ("mem_after_eng_mb", MEM + r"after the engine warm phase: free (\d+) MB", "last", "all"),
+    ("mem_after_vk_mb", MEM + r"after the Vulkan replay: free (\d+) MB", "last", "all"),
+    ("mem_pass_over_mb", MEM + r"at the gate, with the pass over: free (\d+) MB", "last", "all"),
+    ("mem_pass_over_run_mb", MEM + r"at the gate, with the pass over: free \d+ MB \(largest run (\d+)",
+                        "last", "all"),
+    ("mem_gp_first_mb", GPMEM + r"free (\d+) MB", "first", "all"),
+    ("mem_gp_min_mb",   GPMEM + r"free (\d+) MB", "min", "all"),
+    ("mem_gp_min_run_mb", GPMEM + r"free \d+ MB \(largest run (\d+)", "min", "all"),
     # A real fault only. The engine phase's summary line always carries "0 faulted", and
     # counting that as a fault would make every engine run look like it crashed.
     ("faults",         r"FAULT|enumeration faulted|faulted on|[1-9]\d* faulted", "count", "all"),
@@ -122,6 +144,7 @@ DEFAULT_COLS = ["condition", "run", "cold", "load_s", "load_pass_s", "load_hold_
                 "vk_replayed", "eng_jobs", "eng_drawn", "eng_draw_s", "before_pipes", "before_compiled",
                 "gp_pipes", "gp_compiled", "gp_over20", "gp_worst_ms", "route_gp_pipes", "route_gp_compiled",
                 "route_slow_compiles", "ls_compiled",
+                "mem_gate_mb", "mem_pass_over_mb", "mem_pass_cost_mb", "mem_gp_min_mb",
                 "fps_avg", "p99_ms", "max_ms", "spikes", "over50", "route_long_frames", "route_worst_frame_ms",
                 "route_ok", "route_live_s", "route_hangs", "route_hang_s", "frozen_s", "unfocused_s", "deviations",
                 "faults"]
@@ -171,7 +194,8 @@ def parse_log(path, window=None):
         vals = [num(m.group(1)) for m in hits if m.groups()]
         if not vals:
             continue
-        out[name] = {"last": vals[-1], "first": vals[0], "sum": sum(vals), "max": max(vals)}[how]
+        out[name] = {"last": vals[-1], "first": vals[0], "sum": sum(vals),
+                     "max": max(vals), "min": min(vals)}[how]
     return out
 
 
@@ -199,6 +223,10 @@ def parse_run(d):
     if not os.path.exists(log):
         log = os.path.join(d, "FusionFix.shaders.prequit.log")
     row.update(parse_log(log, (route.get("log_at_start"), route.get("log_at_end"))))
+    # What the whole pass cost the address space, gate to gate: the one number that says
+    # whether an arm hands gameplay the machine it was given.
+    if row.get("mem_gate_mb") is not None and row.get("mem_pass_over_mb") is not None:
+        row["mem_pass_cost_mb"] = row["mem_gate_mb"] - row["mem_pass_over_mb"]
     if route:
         row["route_ok"] = "yes" if route.get("clean") else ("done" if route.get("completed") else "NO")
         row["route_live_s"] = route.get("route_live_s")

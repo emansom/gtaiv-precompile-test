@@ -19,6 +19,8 @@
   "PrecompileSpecVariants": 1, "PrecompileExportBaseline": 0, "PrecompileEngineWarm": 0,
   "PrecompileEmitLog": 0, "PrecompileSliceMs": 8, "PrecompileGateMaxSeconds": 0,
   "PrecompileReuseWarmCache": 1,
+  "PrecompileWarmDevice": 1, "PrecompileCrashLog": 0,
+  "PrecompileWarmMusic": 1, "PrecompileWarmMusicTracks": "",
   "CaptureDrawKeys": 0, "CaptureFlushSeconds": 10,
   "CaptureVulkanPipelines": 1, "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesTrace": 0,
   "ReplayVulkanPipelinesForeign": 1
@@ -93,8 +95,9 @@
               "ReplayVulkanPipelines": 0, "ReplayVulkanPipelinesForeign": 0}
   },
   "full+engine": {
-   "about": "Everything: 'full' (D3D9 replay, own and foreign Fossilize) plus the engine warm phase.",
+   "about": "Everything: 'full' (D3D9 replay, own and foreign Fossilize) plus the engine warm phase. From 84a422c the walk builds on a device of its OWN and rotates it every 8192 jobs, which is what keeps the 32-bit address space: PrecompileWarmDevice = 1 is asserted here because it is the whole safety mechanism, and 0 is the arm that killed the game on 2026-09-20.",
    "expect": {"PrecompileShaders": 1, "PrecompileEngineWarm": 1, "PrecompileReplayCapturedKeys": 1,
+              "PrecompileWarmDevice": 1,
               "CaptureDrawKeys": 0, "CaptureVulkanPipelines": 0,
               "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesForeign": 1}
   },
@@ -103,6 +106,22 @@
    "cold": false,
    "keep_state": ["FusionFix.enginewarm.stamp"],
    "expect": {"PrecompileShaders": 1, "PrecompileEngineWarm": 1, "PrecompileReplayCapturedKeys": 1,
+              "PrecompileWarmDevice": 1,
+              "CaptureDrawKeys": 0, "CaptureVulkanPipelines": 0,
+              "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesForeign": 1}
+  },
+  "engine-abort": {
+   "about": "The safety valve, exercised: 'full+engine' cold with PrecompileGateMaxSeconds = 180, so the gate asks the walk to stop in the middle of a cold pass and the pass has to unwind, hand its warm device back and release the loading screen by itself. That teardown was written for unknown hardware (a walk that would take hours on a slow CPU) and had never been run. It answers two questions at once: whether the abort path really bounds the load and gives the address space back, and whether the engine's render-phase build -- which happens before the walk and is the 2026-09-20 report's second crash candidate -- is survivable on its own with only a few thousand pipelines built.",
+   "expect": {"PrecompileShaders": 1, "PrecompileEngineWarm": 1, "PrecompileReplayCapturedKeys": 1,
+              "PrecompileWarmDevice": 1, "PrecompileGateMaxSeconds": 180,
+              "CaptureDrawKeys": 0, "CaptureVulkanPipelines": 0,
+              "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesForeign": 1}
+  },
+  "floor+engine": {
+   "about": "The warm FLOOR of the engine arm, and the third of the three loads a player can meet: warm Mesa cache but NO fingerprint stamp, so the whole walk runs again on a driver that already has every pipeline. That is what a player gets when the stamp is lost but the driver cache is not (a mod update that does not change the shader set, a stamp deleted by hand). 'warm+engine' is the same cache WITH the stamp (the cheap path); this is the same settings without it.",
+   "cold": false,
+   "expect": {"PrecompileShaders": 1, "PrecompileEngineWarm": 1, "PrecompileReplayCapturedKeys": 1,
+              "PrecompileWarmDevice": 1,
               "CaptureDrawKeys": 0, "CaptureVulkanPipelines": 0,
               "ReplayVulkanPipelines": 1, "ReplayVulkanPipelinesForeign": 1}
   },

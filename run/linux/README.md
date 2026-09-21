@@ -150,7 +150,19 @@ running game; `route.py run` drives the route by hand.
 
 `gpparse.py [results...]` prints a row per run and, per condition, the mean and range. Every
 number comes from the `METRICS` table at its top: a column, a regex, and how to combine the
-matching lines (`last`, `first`, `count`, `sum`, `max`, or `delta` of a cumulative counter
-across the route) over the whole log or only the route's part of it. It already knows the
-frame-time, long-frame, per-compile and quiet-wait lines of the build in progress; a new log
-line is one more row in that table.
+matching lines (`last`, `first`, `count`, `sum`, `max`, `min`, or `delta` of a cumulative
+counter across the route) over the whole log or only the route's part of it. It already knows
+the frame-time, long-frame, per-compile and quiet-wait lines of the build in progress; a new
+log line is one more row in that table.
+
+From 84a422c the mod also reports the 32-bit **address space** — `memory <where>: free N MB
+(largest run M MB, ...)` at each phase of the pass, and `memory in gameplay: ...` from
+vkcapture every 15 s. That is the number the engine warm arm is judged on, because the arm
+that killed the game on 2026-09-20 died of a failed allocation, not of anything visible in a
+frame time. The columns: `mem_gate_mb` (the free space the pass was handed),
+`mem_pass_over_mb` (what it hands back, read at the same place), the derived
+`mem_pass_cost_mb` between them, `mem_walk_end_mb` / `mem_walk_freed_mb` around the engine
+walk's own release, and `mem_gp_first_mb` / `mem_gp_min_mb` for the floor gameplay settles
+at. An arm that gives its address space back has the same `mem_pass_over_mb` and the same
+gameplay floor as the arm without it; `state/2026-09-21-linux-engine-warm-v3-test.md` is
+what those look like when it works.
