@@ -428,10 +428,14 @@ def replay_base_key(c, r):
     """ReplayBaseKey: shaders, vertex input (incl. instancing), output/blend state,
     and the rasterizer/multisample words DxvkGraphicsPipelineStateInfo bakes.
 
-    D3DRS_MULTISAMPLEANTIALIAS is not a no-op on a single-sampled target:
-    BindRasterizerState maps it to DxvkRsInfo's sampleCount 0 or 1 and the state
-    struct is compared as bytes, so the two are two cache entries and two compiles.
-    Cull mode and front face ARE dynamic and stay out."""
+    D3DRS_MULTISAMPLEANTIALIAS is two cache ENTRIES and one compile, which is why
+    it is not in here. BindRasterizerState maps it to DxvkRsInfo's sampleCount 0 or
+    1 and DxvkGraphicsPipelineStateInfo is compared as bytes, so DXVK does make two
+    entries -- but the VkPipeline is looked up by a fast-instance key that carries
+    no rs.sampleCount, and the word only reaches msInfo when state.ms.sampleCount()
+    is zero (dxvk_graphics.cpp:356), which comes from the framebuffer and so is
+    never zero for a D3D9 render pass. Cull mode and front face ARE dynamic and
+    stay out."""
     rs = lambda name: r[c.rs_index(D3DRS[name])]
     rts = r[6:6 + MAX_RT]
     write = tuple((rs(_WRITE[i]) & 0xF) if rts[i] else 0 for i in range(MAX_RT))
@@ -444,11 +448,11 @@ def replay_base_key(c, r):
     d = r[I_DECL]
     decl = c.decls[d] if d != DECL_NONE and d < len(c.decls) else b""
     # D3DRS_MULTISAMPLEANTIALIAS is deliberately NOT here, and the ASI leaves it
-    # out too (PrecompileKeySampleCount = 0). DXVK's source says it should be --
-    # it becomes DxvkRsInfo's sample count, which is compared byte for byte -- but
-    # measured on this rig, same binary and same gate, keying on it draws 1188
-    # pipelines instead of 1093 and the driver finishes with the same 786 either
-    # way. Ninety-five draws, no pipelines.
+    # out too (PrecompileKeySampleCount = 0). Measured, same binary and same gate:
+    # keying on it draws 1188 pipelines instead of 1093 and the driver compiles the
+    # same 786 either way -- our 786 counts vkCreateGraphicsPipelines calls, and by
+    # the docstring above the two values cannot reach the Vulkan create-info. It
+    # costs 95 draws and saves 95 of DXVK's own cache entries; neither is a compile.
     raster = (rs("SHADEMODE") == 1,                         # D3DSHADE_FLAT
               rs("FILLMODE"),
               # DXVK forces 0xffff unless RT0 is multisampled above NONMASKABLE.
