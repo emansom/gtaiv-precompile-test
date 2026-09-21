@@ -1,4 +1,4 @@
-"""Read and write FusionFix pipeline-cache containers ('FFPC'), versions 1 and 2.
+"""Read and write FusionFix pipeline-cache containers ('FFPC'), versions 1 to 3.
 
 Shared by filter_cache.py, merge_cache.py and upgrade_cache_v2.py so the record
 layout is written down once, the way pipelinekeys.h is the one definition on the
@@ -8,29 +8,78 @@ mislabels every field after the change.
   v1  first single-file container
   v2  KeyRecord gains streamFreq[4] before count: the instancing a key was drawn
       with (D3DSTREAMSOURCE_INSTANCEDATA | divisor per stream, else 0)
+  v3  KeyRecord gains the rest of what DXVK specialises a D3D9 pipeline on and the
+      v2 key left to ambient device state: the b# registers per stage, DXVK's
+      clip-plane COUNT (enabled AND non-zero, not the enable mask), the
+      projected-texture stage mask, the per-slot sampler MODE (plain / Fetch4 /
+      depth-compare) and the fixed-function texture stage block
 
 Records are returned as lists of field values in KeyRecord order. Writing always
-produces the current version (2); a v1 record is widened with streamFreq = 0,
-which is what "never seen instanced" means (the ASI's reader does the same in
-memory). write_named()/write_to() write under the content name the ASI shares
-files by, FusionFix.<h>.bin -- see "sharing between PCs" below.
+produces the current version (3); an older record is widened exactly as the ASI's
+reader widens it in memory (d3d9cache.h, WidenToV3) -- streamFreq = 0 for v1, and
+for v2 the defaults the replay actually drew those keys with, with clipPlaneCount
+inferred as the popcount of the enable mask. write_named()/write_to() write under
+the content name the ASI shares files by, FusionFix.<h>.bin -- see "sharing
+between PCs" below.
 """
 import os
 import struct
 
 MAGIC = 0x43504646            # 'FFPC'
-CURRENT = 2
+CURRENT = 3
 SEC_META, SEC_RSTYPES, SEC_DECLS, SEC_KEYS, SEC_SHADERS = 1, 2, 3, 4, 5
 NUM_RS, NUM_SAMPLERS, MAX_STREAMS = 58, 20, 4
+FF_STAGES = 8
 DECL_NONE = 0xFFFFFFFF
 
 _HEAD = "<QQIIII" + "I" * 4 + "III" + "I" * NUM_RS + "B" * NUM_SAMPLERS
-REC = {1: _HEAD + "II", 2: _HEAD + "I" * MAX_STREAMS + "II"}
+# vsBools, psBools, clipPlaneCount, projMask, samplerMode[20], ffStage[8] x 9 bytes
+_SPEC = "HHBB" + "B" * NUM_SAMPLERS + "B" * (9 * FF_STAGES)
+REC = {1: _HEAD + "II",
+       2: _HEAD + "I" * MAX_STREAMS + "II",
+       3: _HEAD + "I" * MAX_STREAMS + _SPEC + "II"}
 
-# Field positions (same in both versions up to the samplers).
+# Field positions (same in every version up to the samplers).
 I_VS, I_PS, I_DECL = 0, 1, 2
-I_STREAMS = 13 + NUM_RS + NUM_SAMPLERS        # v2 only
+I_STREAMS = 13 + NUM_RS + NUM_SAMPLERS        # v2+
+I_SPEC = I_STREAMS + MAX_STREAMS              # v3: vsBools is the first of them
+I_VSBOOLS, I_PSBOOLS = I_SPEC, I_SPEC + 1
+I_CLIPCOUNT, I_PROJMASK = I_SPEC + 2, I_SPEC + 3
+I_SAMPLERMODE = I_SPEC + 4                    # 20 entries
+I_FFSTAGE = I_SAMPLERMODE + NUM_SAMPLERS      # 8 x (colorOp, alphaOp, resultArg,
+                                              #      colorArg[3], alphaArg[3])
+N_SPEC = 4 + NUM_SAMPLERS + 9 * FF_STAGES
 META_FMT = "<IIIiIQIIII"                      # CacheMeta, #pragma pack(1), 44 bytes
+
+# D3DTOP_MODULATE / SELECTARG1 / DISABLE and D3DTA_CURRENT / TEXTURE: D3D9's own
+# texture stage defaults, which is what a device nobody has told otherwise holds.
+# Mirrors pipelinekeys::DefaultFFStages.
+def default_ff_stages():
+    out = []
+    for s in range(FF_STAGES):
+        out += [4 if s == 0 else 1,      # colorOp
+                2 if s == 0 else 1,      # alphaOp
+                1,                       # resultArg  D3DTA_CURRENT
+                1, 2, 1,                 # colorArg0..2
+                1, 2, 1]                 # alphaArg0..2
+    return out
+
+
+def widen_to_v3(r, rs_types):
+    """The v3 specialisation block for a pre-v3 record, appended in place.
+
+    Every value is a default the device measurably held, with one inference:
+    DXVK counts the clip planes that are enabled AND non-zero, and a pre-v3 file
+    has no coefficients, so the count is taken to be the popcount of the enable
+    mask. That over-warms at worst; the other direction stutters. Same rule as
+    d3d9cache.h's WidenToV3, which is what makes an old file replay the same
+    offline and in the ASI."""
+    try:
+        cpe = 13 + list(rs_types).index(152)      # D3DRS_CLIPPLANEENABLE
+        count = bin(r[cpe] & 0x3F).count("1")
+    except ValueError:
+        count = 0
+    return [0, 0, count, 0] + [0] * NUM_SAMPLERS + default_ff_stages()
 
 
 class Container:
@@ -63,11 +112,12 @@ def read(path):
     if magic != MAGIC:
         raise ValueError("%s: not an FFPC container (magic 0x%08x)" % (path, magic))
     if version not in REC:
-        raise ValueError("%s: container v%d, this tool reads v1 and v2" % (path, version))
+        raise ValueError("%s: container v%d, this tool reads v1 to v%d" % (path, version, CURRENT))
     fmt = REC[version]
     size = struct.calcsize(fmt)
     c = Container()
     c.version = version
+    key_blob, key_count = b"", 0
     for i in range(nsec):
         sid, off, sz, count = struct.unpack_from("<IIII", data, 16 + 16 * i)
         blob = data[off:off + sz]
@@ -82,17 +132,22 @@ def read(path):
                 c.decls.append(blob[pos + 4:pos + 4 + 8 * n])
                 pos += 4 + 8 * n
         elif sid == SEC_KEYS:
-            for j in range(count):
-                r = list(struct.unpack_from(fmt, blob, j * size))
-                if version == 1:
-                    r[-2:-2] = [0] * MAX_STREAMS
-                c.keys.append(r)
+            key_blob, key_count = blob, count
         elif sid == SEC_SHADERS:
             pos = 0
             for _ in range(count):
                 h, stage, n = struct.unpack_from("<QII", blob, pos)
                 c.shaders[h] = (stage, blob[pos + 16:pos + 16 + n])
                 pos += 16 + n
+    # Keys last: widening a pre-v3 record needs the rsTypes section, and the
+    # section table does not promise an order.
+    for j in range(key_count):
+        r = list(struct.unpack_from(fmt, key_blob, j * size))
+        if version == 1:
+            r[-2:-2] = [0] * MAX_STREAMS
+        if version < 3:
+            r[-2:-2] = widen_to_v3(r, struct.unpack("<%dI" % (len(c.rs_types) // 4), c.rs_types))
+        c.keys.append(r)
     return c
 
 
@@ -191,7 +246,9 @@ def instanced(r):
 
 D3DRS = {                     # D3DRENDERSTATETYPE values (d3d9types.h)
     "ALPHATESTENABLE": 15, "SRCBLEND": 19, "DESTBLEND": 20, "ALPHAFUNC": 25,
-    "ALPHABLENDENABLE": 27, "FOGENABLE": 28, "CLIPPLANEENABLE": 152,
+    "ALPHABLENDENABLE": 27, "FOGENABLE": 28, "SPECULARENABLE": 29,
+    "FOGTABLEMODE": 35, "CLIPPLANEENABLE": 152, "POINTSPRITEENABLE": 156,
+    "POINTSCALEENABLE": 157, "FOGVERTEXMODE": 140,
     "COLORWRITEENABLE": 168, "BLENDOP": 171, "COLORWRITEENABLE1": 190,
     "COLORWRITEENABLE2": 191, "COLORWRITEENABLE3": 192,
     "SEPARATEALPHABLENDENABLE": 206, "SRCBLENDALPHA": 207, "DESTBLENDALPHA": 208,
@@ -239,6 +296,61 @@ def sampler_use(code):
 
 
 ps_sampler_use = sampler_use      # the name this was called before it covered both stages
+
+
+def bool_mask(code):
+    """Which b# registers an SM2/SM3 shader READS, or None below SM2.
+
+    Mirrors the second half of ParseShaderIO, which mirrors DXVK's own analysis
+    (d3d9_shader_analysis.cpp:127): every source operand whose register type is
+    CONSTBOOL. The device ANDs its 16 bool constants with this before they reach
+    the spec constant, so without it the recorded b# would split keys on registers
+    the bound shader never looks at. def/defi/defb are stepped over whole -- their
+    operands are raw data, and scanning them would invent b# out of constants."""
+    dw = struct.unpack("<%dI" % (len(code) // 4), code[:len(code) // 4 * 4])
+    if not dw or ((dw[0] >> 8) & 0xFF) < 2:
+        return None
+    mask = 0
+    i = 1
+    while i < len(dw):
+        tok = dw[i]
+        op = tok & 0xFFFF
+        if op == 0xFFFF:
+            break
+        if op == 0xFFFE:
+            i += 1 + ((tok >> 16) & 0x7FFF)
+            continue
+        n = (tok >> 24) & 0x0F
+        if op not in (0x001F, 0x0051, 0x0052, 0x0053):   # not dcl / def / defi / defb
+            for a in range(1, n + 1):
+                if i + a >= len(dw):
+                    break
+                p = dw[i + a]
+                if not (p & 0x80000000):
+                    continue
+                if (((p >> 28) & 0x7) | ((p >> 8) & 0x18)) != 14:   # D3DSPR_CONSTBOOL
+                    continue
+                reg = p & 0x7FF
+                if reg < 16:
+                    mask |= 1 << reg
+        i += 1 + n
+    return mask
+
+
+def bool_mask_table(containers, extra=None):
+    """hash -> b# mask, from whatever bytecode is visible. Same population and the
+    same "absent means unmasked" rule as sampler_use_table."""
+    out = {}
+    for c in containers:
+        for h, (_stage, code) in c.shaders.items():
+            m = bool_mask(code)
+            if m is not None:
+                out.setdefault(h, m)
+    for h, (_stage, code) in (extra or {}).items():
+        m = bool_mask(code)
+        if m is not None:
+            out.setdefault(h, m)
+    return out
 
 
 def sampler_use_table(containers, extra=None):
@@ -290,23 +402,53 @@ def replay_base_key(c, r):
             write, blend)
 
 
-def replay_key(c, r, use):
-    """ReplayPipelineKey: the base plus the spec-constant state.
+def replay_key(c, r, use, bools=None):
+    """ReplayPipelineKey: the base plus ALL of D3D9SpecData's device inputs.
 
-    `use` is the (ps_use, vs_use) pair sampler_use_table returns. Each stage's slots
-    are masked to what that stage's shader declares; a shader we cannot resolve keeps
-    its slots as recorded, which over-counts rather than under-warms -- the same
-    choice the ASI makes."""
+    `use` is the (ps_use, vs_use) pair sampler_use_table returns; `bools` is
+    bool_mask_table's hash -> b# mask. Each stage's sampler slots (and their modes)
+    are masked to what that stage's shader declares, and the b# to what it reads; a
+    shader we cannot resolve keeps its value as recorded, which over-counts rather
+    than under-warms -- the same choice the ASI makes.
+
+    Note what is NOT in here: the clip-plane ENABLE mask. DXVK specialises on the
+    clip-plane COUNT (enabled AND non-zero), so that is the field, and it comes
+    from the record. Fog modes, point mode, specular, the projected mask and the
+    fixed-function stages are only in the key where DXVK evaluates them at all."""
     ps_use, vs_use = use
+    bools = bools or {}
     rs = lambda name: r[c.rs_index(D3DRS[name])]
     pu = ps_use.get(r[I_PS])
     vu = vs_use.get(r[I_VS])
     samplers = r[13 + NUM_RS:13 + NUM_RS + NUM_SAMPLERS]
-    ps_slots, vs_slots = samplers[:PS_SAMPLERS], samplers[PS_SAMPLERS:PS_SAMPLERS + VS_SAMPLERS]
-    masked = tuple(t if (pu is None or pu[i]) else 0 for i, t in enumerate(ps_slots)) + \
-             tuple(t if (vu is None or vu[j]) else 0 for j, t in enumerate(vs_slots))
+    modes = r[I_SAMPLERMODE:I_SAMPLERMODE + NUM_SAMPLERS]
+    used = [(pu is None or pu[i]) for i in range(PS_SAMPLERS)] + \
+           [(vu is None or vu[j]) for j in range(VS_SAMPLERS)]
+    masked = tuple(t if used[i] else 0 for i, t in enumerate(samplers))
+    masked_modes = tuple(m if (used[i] and samplers[i]) else 0 for i, m in enumerate(modes))
+    # samplerProjMask is `projected & bound & declared`, and only stages 0..7.
+    proj = 0
+    for i in range(FF_STAGES):
+        if used[i] and samplers[i] and (r[I_PROJMASK] >> i) & 1:
+            proj |= 1 << i
+
+    fog = rs("FOGENABLE")
+    fog_modes = (rs("FOGVERTEXMODE"), rs("FOGTABLEMODE")) if fog else (0, 0)
+    point = ((bool(rs("POINTSPRITEENABLE")), bool(not r[I_VS] and rs("POINTSCALEENABLE")))
+             if r[4] == 1 else (False, False))          # D3DPT_POINTLIST
+    ff = tuple(r[I_FFSTAGE:I_FFSTAGE + 9 * FF_STAGES]) if not r[I_PS] else ()
+
+    def mask_bools(h, bits):
+        if not h:
+            return 0
+        m = bools.get(h)
+        return bits if m is None else bits & m
+
     return (replay_base_key(c, r), rs("ALPHATESTENABLE"), rs("ALPHAFUNC"),
-            rs("FOGENABLE"), rs("CLIPPLANEENABLE") & 0x3F, masked)
+            fog, r[I_CLIPCOUNT], masked,
+            fog_modes, point, bool(rs("SPECULARENABLE")), proj,
+            mask_bools(r[I_VS], r[I_VSBOOLS]), mask_bools(r[I_PS], r[I_PSBOOLS]),
+            masked_modes, ff)
 
 
 def prune(c):

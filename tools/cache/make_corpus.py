@@ -27,8 +27,6 @@ good = open(src, "rb").read()
 base = ffpc.read(src)
 expected = []
 
-REC2 = struct.calcsize(ffpc.REC[2])
-REC1 = struct.calcsize(ffpc.REC[1])
 I_RS = 13
 RS = ["ZENABLE", "ZWRITEENABLE", "ZFUNC", "ALPHATESTENABLE", "ALPHAFUNC", "ALPHAREF", "ALPHABLENDENABLE",
       "SRCBLEND", "DESTBLEND", "BLENDOP"]
@@ -109,11 +107,14 @@ put("3a-meta-string-length-huge.bin", patch(good, off + 44, "<I", 0x7FFFFFFF), "
 put("3b-section-overlaps-header.bin", patch(good, secs[ffpc.SEC_KEYS][0] + 4, "<I", 4), "rejected")
 
 # ---- other versions / builds / installs ------------------------------------------
-def v1(data):
-    """The same file as container v1: KeyRecord without streamFreq."""
+def older(version):
+    """The same file as an older container: v1 is KeyRecord without streamFreq,
+    v2 without the specialisation block as well. Both have to keep replaying -- a
+    player's other PC may be on an older build -- so both are in the corpus."""
     c = ffpc.read(src)
-    fmt1 = ffpc.REC[1]
-    keys = b"".join(struct.pack(fmt1, *(r[:ffpc.I_STREAMS] + r[-2:])) for r in c.keys)
+    fmt1 = ffpc.REC[version]
+    head = ffpc.I_STREAMS if version == 1 else ffpc.I_SPEC
+    keys = b"".join(struct.pack(fmt1, *(r[:head] + r[-2:])) for r in c.keys)
     body = [(ffpc.SEC_META, c.meta, 1), (ffpc.SEC_RSTYPES, c.rs_types, len(c.rs_types) // 4),
             (ffpc.SEC_DECLS, b"".join(struct.pack("<I", len(d) // 8) + d for d in c.decls), len(c.decls)),
             (ffpc.SEC_KEYS, keys, len(c.keys)),
@@ -124,11 +125,16 @@ def v1(data):
     for sid, blob, n in body:
         table += struct.pack("<IIII", sid, offset, len(blob), n)
         offset += len(blob)
-    return struct.pack("<IIII", ffpc.MAGIC, 1, len(body), 0) + table + b"".join(b for _, b, _ in body)
+    return struct.pack("<IIII", ffpc.MAGIC, version, len(body), 0) + table + b"".join(b for _, b, _ in body)
 
 
-put("40-format-v1.bin", v1(good), "accepted", (0, 0, 0))
-put("41-format-v3.bin", patch(good, 4, "<I", 3), "skipped")
+# One file per older container version, down-converted from the source. Skipped
+# when the source IS that version: the down-conversion would be the byte-identical
+# file and the reader would rightly call it a duplicate rather than test anything.
+for _v in range(1, ffpc.CURRENT):
+    if _v < base.version:
+        put("4%d-format-v%d.bin" % (5 if _v > 1 else 0, _v), older(_v), "accepted", (0, 0, 0))
+put("41-format-v%d.bin" % (ffpc.CURRENT + 1), patch(good, 4, "<I", ffpc.CURRENT + 1), "skipped")
 put("42-format-v0.bin", patch(good, 4, "<I", 0), "rejected")
 
 
@@ -272,7 +278,8 @@ for i in range(12):
     put("8%x-bitflip.bin" % i, bytes(b), "any")
 # targeted: a flip inside a key, inside a shader, inside the section table
 RS0 = 60                                            # byte offset of KeyRecord::rs[0] (ZENABLE)
-put("90-flip-in-key.bin", patch(good, keys_off + 5 * REC2 + RS0, "<I", 0x40000001), "accepted", (1, 0, 0))
+REC = struct.calcsize(ffpc.REC[base.version])       # the SOURCE's record stride, not a fixed one
+put("90-flip-in-key.bin", patch(good, keys_off + 5 * REC + RS0, "<I", 0x40000001), "accepted", (1, 0, 0))
 sh_off = secs[ffpc.SEC_SHADERS][1]
 b = bytearray(good)
 b[sh_off + 16 + 40] ^= 0x10

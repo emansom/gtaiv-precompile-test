@@ -44,9 +44,10 @@ a = ap.parse_args()
 base = ffpc.read(a.baseline)
 caps = [ffpc.read(p) for p in a.captures]
 use = ffpc.sampler_use_table([base] + caps)
+bools = ffpc.bool_mask_table([base] + caps)
 
 base_ids = {ffpc.replay_base_key(base, r) for r in base.keys}
-base_keys = {ffpc.replay_key(base, r, use) for r in base.keys}
+base_keys = {ffpc.replay_key(base, r, use, bools) for r in base.keys}
 print("baseline %-44s v%d  %6d records -> %5d replay keys, %4d base identities"
       % (a.baseline.split("/")[-1], base.version, len(base.keys), len(base_keys), len(base_ids)))
 
@@ -57,7 +58,7 @@ for path, c in zip(a.captures, caps):
     for r in c.keys:
         b = ffpc.replay_base_key(c, r)
         ids[b] += r[-2]
-        keys[ffpc.replay_key(c, r, use)] += r[-2]
+        keys[ffpc.replay_key(c, r, use, bools)] += r[-2]
         pair_of[b] = (r[ffpc.I_VS], r[ffpc.I_PS])
     inst = sum(1 for r in c.keys if ffpc.instanced(r))
 
