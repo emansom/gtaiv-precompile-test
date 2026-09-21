@@ -47,6 +47,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 
 HOME = os.path.expanduser("~")
@@ -391,25 +392,75 @@ class Runner:
         return None
 
     def route(self):
+        """Drive the route, under a wall clock and a dead-game check.
+
+        route.py talks to the game over frida. When the game dies mid-route that link
+        can block forever (seen on 2026-09-21: `full+engine/run1` left the driver hung
+        on a destroyed script), and reading the driver's stdout to EOF then blocks the
+        whole session behind a game that is never coming back. So the reading happens on
+        a thread and this loop owns the child: it ends the route when it outlives
+        --route-timeout, and when GTA IV is gone and the driver has not returned by
+        itself within --route-grace.
+        """
         cmd = [sys.executable, "-u", ROUTE_PY, "run", "--route", self.a.route, "--log", LOG,
                "--out", os.path.join(self.rundir, "route.json"), "--settle", str(self.a.settle),
                "--ready-timeout", str(self.a.ready_timeout)] + (["--no-refocus"] if self.a.no_refocus else [])
-        # Bytes, so the driver's "\r" progress lines stay whole in route.log and can be left
-        # out of the console (text mode would turn every "\r" into a line of its own).
+        deadline = time.time() + self.a.route_timeout
         with open(os.path.join(self.rundir, "route.log"), "ab") as sink:
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            for raw in p.stdout:
-                sink.write(raw); sink.flush()
-                line = raw.decode("utf-8", "replace").rstrip("\n").split("\r")[-1]
-                if line.strip():
-                    print("    " + line.rstrip(), flush=True)
-            return p.wait()
+
+            def pump():
+                # Bytes, so the driver's "\r" progress lines stay whole in route.log and can
+                # be left out of the console (text mode would turn every "\r" into a line of
+                # its own).
+                for raw in p.stdout:
+                    sink.write(raw); sink.flush()
+                    line = raw.decode("utf-8", "replace").rstrip("\n").split("\r")[-1]
+                    if line.strip():
+                        print("    " + line.rstrip(), flush=True)
+
+            reader = threading.Thread(target=pump, daemon=True)
+            reader.start()
+            gone_at = None
+            while p.poll() is None:
+                time.sleep(2)
+                why = None
+                if time.time() > deadline:
+                    why = "it ran past --route-timeout (%ds)" % self.a.route_timeout
+                elif not self.game_running():
+                    gone_at = gone_at or time.time()      # a moment to write route.json itself
+                    if time.time() - gone_at > self.a.route_grace:
+                        why = "GTA IV has been gone %.0fs and the driver has not returned" % (
+                            time.time() - gone_at)
+                else:
+                    gone_at = None
+                if why:
+                    self.say("ENDING THE ROUTE: " + why)
+                    self.meta["route_killed"] = why
+                    p.terminate()
+                    try:
+                        p.wait(timeout=20)
+                    except subprocess.TimeoutExpired:
+                        p.kill()
+                    break
+            rc = p.wait()
+            reader.join(timeout=10)
+            return rc
 
     def quit(self):
         for _ in range(3):
             if not self.game_running():
                 break
-            r = subprocess.run([sys.executable, QUIT], capture_output=True, text=True)
+            try:
+                r = subprocess.run([sys.executable, QUIT], capture_output=True, text=True,
+                                   timeout=self.a.quit_timeout)
+            except subprocess.TimeoutExpired:
+                # The skill writes one word into the game's memory over frida. A minute
+                # without a return means the link is dead, not slow: try again, and let
+                # the wait below decide whether the process really went away.
+                self.say("gtaiv-quit did not return within %ds" % self.a.quit_timeout)
+                time.sleep(10)
+                continue
             self.say("gtaiv-quit exit %d: %s" % (r.returncode, (r.stdout + r.stderr).strip()))
             if r.returncode == 0:
                 break
@@ -545,6 +596,15 @@ def main():
                     help="seconds after the route before the quit (FusionFix reports every 15 s)")
     ap.add_argument("--pass-timeout", type=int, default=3600)
     ap.add_argument("--ready-timeout", type=int, default=900)
+    # A route is ~5 minutes and waits at most --ready-timeout for gameplay before it
+    # starts, so 30 minutes is well past any real one and still bounded: a run can no
+    # longer sit for tens of minutes behind a driver that will never return.
+    ap.add_argument("--route-timeout", type=int, default=1800,
+                    help="seconds before the route driver is ended, however far it got")
+    ap.add_argument("--route-grace", type=int, default=30,
+                    help="seconds to let the driver finish by itself once GTA IV is gone")
+    ap.add_argument("--quit-timeout", type=int, default=60,
+                    help="seconds for one gtaiv-quit attempt before it is given up on")
     ap.add_argument("--results", default="/tmp/ff-results")
     ap.add_argument("--snapshot", default="/tmp/ff-tools/snapshot")
     ap.add_argument("--dry-run", action="store_true", help="preflight only; touches nothing")

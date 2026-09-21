@@ -58,6 +58,12 @@
    "expect": {"PrecompileShaders": 1, "PrecompileReplayCapturedKeys": 1, "CaptureDrawKeys": 0,
               "CaptureVulkanPipelines": 0, "ReplayVulkanPipelines": 0, "ReplayVulkanPipelinesForeign": 0}
   },
+  "pass-only": {
+   "about": "The loading-screen pass with NOTHING to warm: PrecompileCoverage = 0 so the synthetic dummy-draw pass returns on its first line, no recorded keys, no Fossilize replay, no engine phase. What is left is the pass itself -- it creates the shader objects, holds the loading screen, and on a gate where it draws its own overlay it also PRESENTS. Read against 'off' (20 pipelines before gameplay, no pass at all), the difference is what the pass's own frames build. That is the arm that separates 'the gate changed what the replay warms' from 'the gate stopped the pass presenting' (2026-09-21).",
+   "expect": {"PrecompileShaders": 1, "PrecompileCoverage": 0, "PrecompileReplayCapturedKeys": 0,
+              "PrecompileEngineWarm": 0, "CaptureDrawKeys": 0, "CaptureVulkanPipelines": 0,
+              "ReplayVulkanPipelines": 0, "ReplayVulkanPipelinesForeign": 0}
+  },
   "d3d9+vk-own": {
    "about": "The D3D9 pass, then this PC's own Fossilize recording; nothing foreign.",
    "expect": {"PrecompileShaders": 1, "PrecompileReplayCapturedKeys": 1, "CaptureDrawKeys": 0,

@@ -12,6 +12,7 @@ game for one named condition, driven along the same route every time.
 | `conditions.json` | the conditions: the `[SHADERS]` keys each asserts, drop-ins, cold or warm |
 | `gpparse.py` | result folders to markdown tables |
 | `samewindow.py` | compare logs over the same amount of gameplay (for runs that did not finish the route) |
+| `legsplit.py` | where in the route a run built its pipelines: creations and long frames per leg |
 | `kwin-focus-gtaiv.js` | KWin script that gives the game window focus back |
 
 Needs: the frida-gadget `.asi` in `plugins\` (the route and the quit both use it),
@@ -53,9 +54,31 @@ Results: `/tmp/ff-results/<condition>/run<N>/` with `meta.json` (what ran, hashe
 asserted keys, staged and removed files, timings), `route.json`, `route.log`, `runner.log`,
 `env.txt`, `FusionFix.shaders.prequit.log` and `FusionFix.shaders.log`.
 
+**A dead game no longer blocks the runner.** `route.py` drives the game over frida, and a
+game that dies mid-route can leave it hung on a destroyed script (09-21, `full+engine`);
+reading the driver's output to EOF then held the whole session behind a game that was
+never coming back. The runner now supervises the driver: `--route-timeout` (1800 s) ends
+it however far it got, and once GTA IV is gone it gets `--route-grace` (30 s) to write
+`route.json` itself before it is ended — `meta.json` records why in `route_killed`. One
+`gtaiv-quit` attempt gets `--quit-timeout` (60 s); the run then retries it, as before.
+None of this touches a live game: the quit is still the skill's memory write, never a kill.
+
 Hands off the PC during a run. The route notices when the game loses focus or its simulation
 freezes and asks KWin to focus the game again (within a second when tested), but every
 second of it is logged and the run is no longer "clean".
+
+**And hands off the CPU.** Several agents share this machine, and a four-way MSVC build
+under Wine next to a run costs the game about 12 fps and puts a few hundred frames over
+50 ms into the route that no pipeline creation explains (09-21, `new/run1`: 265 long
+frames, p95 19.8 ms, in one 100 s burst that lines up exactly with a foreign build's
+compile phase). Pipeline *creations* survive that, frame times do not. Sample
+`/proc/loadavg`, `/proc/pressure/cpu` and `ps -eo comm= | grep -E '^(CL\.exe|msbuild)$'`
+through a measuring session and throw the frame times of any run that met a build.
+Holding `/tmp/ff-build.lock` would stop them, except that `flock /tmp/ff-build.lock
+./build-asi.sh` leaks the lock: the build's `wineserver`, `services.exe` and friends
+inherit the open descriptor and outlive the build, so the lock stays held by daemons
+nobody is watching. Free it with `WINEPREFIX=$XDG_RUNTIME_DIR/fusionfix-msbuild-wine
+wineserver -k` (that prefix is the build's, never the game's).
 
 ## Drop-ins
 
